@@ -2,6 +2,10 @@
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
+#define START_SWITCH_PIN 0
+#define END_SWITCH_PIN 1
+#define ARM_MOTOR_OUTPUT 2
+
 void swingArm() {
      LCD.clear();  
      LCD.home();
@@ -21,7 +25,7 @@ void swingArm() {
      LCD.setCursor(0,1); LCD.print("Forward");
      
   while( digitalRead(START_SWITCH_PIN) != HIGH ){
-     motor.speed(armMotor, 300);
+     motor.speed(ARM_MOTOR_OUTPUT, 300);
      digitalWrite(START_SWITCH_PIN, HIGH);
   }
   
