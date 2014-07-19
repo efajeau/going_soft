@@ -16,6 +16,12 @@
 #define END_SWITCH_PIN 1
 #define ARTIFACT_DETECT_SWITCH 2
 #define ARM_MOTOR_OUTPUT 2
+#define TRUE 1
+#define FALSE 0
+#define TAPE_FOLLOWING 0
+#define ARTIFACT_ARM 1
+#define IR_SENSOR 2
+#define REVERSE_DRIVING 3
 
 int kp;
 int kd;
@@ -25,9 +31,20 @@ int delta;
 int IR_kp;
 int IR_kd;
 int IR_velocity;
+int testSelect;
+int armSpeed;
 
-int[5] tapeValues = {0, 0, 0, 0, 0};
-int[3] IRValues = {0, 0, 0};
+int tapeValues[5] = {0, 0, 0, 0, 0};
+int IRValues[3] = {0, 0, 0};
+int testOptions[4] = {0, 0, 0, 0};
+
+void tapeTuning(int vals[]);
+void IRTuning(int vals[]);
+int tuneArm();
+void selectionMenu(int testOptions[]);
+//void testTapeFollowing();
+//void testIR();
+//void testArm();
 
 void setup() {
   portMode(0, INPUT);
@@ -41,30 +58,38 @@ void setup() {
 
 void loop() {
   
-  /**FOR TUNING VALUES
-   * CAN BE HARDCODED INSTEAD  
-   */
-  tapeTuning(tapeValues);
-  kp = tapeValues(0);
-  kd = tapeValues(1);
-  threshold = tuneValues(2)
-  velocity = tuneValues(3);
-  delta = tuneValues(4);
+  selectionMenu(testOptions);
   
-  IRtuning(IRValues);
-  IR_kp = IRValues(0);
-  IR_kd = IRValues(1);
-  IR_velocity = IRValues(2);
+  if (testOptions[TAPE_FOLLOWING] == TRUE) {
+    tapeTuning(tapeValues);
+    kp = tapeValues[0];
+    kd = tapeValues[1];
+    threshold = tapeValues[2];
+    velocity = tapeValues[3];
+    delta = tapeValues[4];
+  }
   
-  //START WITH TAPE-FOLLOWING
+  if (testOptions[ARTIFACT_ARM] == TRUE) {
+    armSpeed = tuneArm();
+  }
+  
+  if (testOptions[IR_SENSOR] == TRUE) {
+    IRTuning(IRValues);
+    IR_kp = IRValues[0];
+    IR_kd = IRValues[1];
+    IR_velocity = IRValues[2];
+  }
+  
   while(!stopbutton()) {
-    tapeFollowing(kp, kd, threshold, velocity, delta);
-    //SWING ARM WHILE ROLLING
-    if (digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
-      swingArm();
+    if (testOptions[TAPE_FOLLOWING] == TRUE) {
+      tapeFollowing(kp, kd, threshold, velocity, delta);
     }
-    //DETECT IF ON ROCKS W/ THRESHOLD IR SIGNAL
-    if (getIRSignal() > IR_THRESHOLD) {
+    if (testOptions[ARTIFACT_ARM] == TRUE && digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
+      motor.stop(0);
+      motor.stop(1);
+      swingArm(armSpeed);
+    }
+    if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
       while(!stopbutton()) {
        IRFollowing(IR_velocity, IR_kp, IR_kd);
       }
@@ -75,7 +100,7 @@ void loop() {
 /**
  * Initializes tuning for all parameters
  */
-void tapeTuning(int[] vals) {
+void tapeTuning(int vals[]) {
   //MENU TO SET PID
    while ( !(stopbutton()) ){
     vals[0] = knob(6);
@@ -117,14 +142,14 @@ void tapeTuning(int[] vals) {
   }
 }
 
-void IRTuning(int[] vals) {
+void IRTuning(int vals[]) {
   while ( !(stopbutton()) ){
     vals[0] = knob(6);
     vals[1] = knob(7);
     LCD.home() ;
     LCD.setCursor(0,0); LCD.print("Tuning PID for IR detection");
     LCD.setCursor(0,1); LCD.print("P: "); LCD.print(vals[0]);
-    LCD.setCursor(8,1);LCD.print("D: "); LCD.print(vals[1]);
+    LCD.setCursor(8,1); LCD.print("D: "); LCD.print(vals[1]);
     delay(10);
     LCD.clear(); 
   }
@@ -139,5 +164,89 @@ void IRTuning(int[] vals) {
     LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
     delay(10);
     LCD.clear();
+  }
+}
+
+int tuneArm() {
+  
+  int armSpeed = 0;
+  
+  while( !(stopbutton()) ) {
+     armSpeed = knob(6);
+     LCD.home();
+     LCD.setCursor(0,0); LCD.print("ARM SPEED: "); LCD.print(armSpeed);
+     delay(10);
+     LCD.clear();
+  }
+  
+  return armSpeed;
+}
+
+void selectionMenu(int testOptions[]) {
+  while (!stopbutton()) {
+    LCD.home();
+    LCD.setCursor(0,0); LCD.print("WHAT TEST?");
+  
+    testSelect = floor(knob(6)/1023.0*4.0);
+    LCD.home(); LCD.setCursor(0,1);
+  
+    if (testSelect == 0) {
+      LCD.print("Tape Following");
+      if (startbutton()) {
+        if (testOptions[0] == FALSE) {
+          testOptions[0] = TRUE;
+          LCD.setCursor(14, 0); LCD.print("*");
+        }
+        else {
+          testOptions[0] = FALSE;
+          LCD.setCursor(14, 0); LCD.print(" ");
+        }
+      }
+      delay(100);
+    }
+    else if (testSelect == 1) {
+      LCD.print("Artifact Arm");
+      if (startbutton()) {
+        if (testOptions[1] == FALSE) {
+          testOptions[1] = TRUE;
+          LCD.setCursor(14, 0); LCD.print("*");
+        }
+        else {
+          testOptions[1] = FALSE;
+          LCD.setCursor(14, 0); LCD.print(" ");
+        }
+      }
+      delay(100);
+    }
+    else if (testSelect == 2){
+      LCD.print("IR Sensor");
+      if (startbutton()) {
+        if (testOptions[2] == FALSE) {
+          testOptions[2] = TRUE;
+          LCD.setCursor(14, 0); LCD.print("*");
+        }
+        else {
+          testOptions[2] = FALSE;
+          LCD.setCursor(14, 0); LCD.print(" ");
+        }
+      }
+      delay(100);
+    }
+    else {
+      LCD.print("Reverse Driving");
+      if (startbutton()) {
+        if (testOptions[3] == FALSE) {
+          testOptions[3] = TRUE;
+          LCD.setCursor(14, 0); LCD.print("*");
+        }
+        else {
+          testOptions[3] = FALSE;
+          LCD.setCursor(14, 0); LCD.print(" ");
+        }
+      }
+      delay(100);
+    }
+    LCD.clear();
+    delay(10);
   }
 }

@@ -11,8 +11,6 @@
 int IR_error;
 int last_IR_error;
 int stored_IR_lerr;
-int IR_kp;
-int IR_kd;
 int IR_ki;
 int IR_p;
 int IR_d;

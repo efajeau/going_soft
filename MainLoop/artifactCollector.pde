@@ -6,14 +6,14 @@
 #define END_SWITCH_PIN 1
 #define ARM_MOTOR_OUTPUT 2
 
-void swingArm() {
+void swingArm(int armSpeed) {
      LCD.clear();  
      LCD.home();
      LCD.setCursor(0,0); LCD.print("Swinging");
      LCD.setCursor(0,1); LCD.print("Back");
      
   while( digitalRead(END_SWITCH_PIN) != HIGH ){
-     motor.speed(ARM_MOTOR_OUTPUT, -300);
+     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
      digitalWrite(END_SWITCH_PIN, HIGH);
   }
   
@@ -25,7 +25,7 @@ void swingArm() {
      LCD.setCursor(0,1); LCD.print("Forward");
      
   while( digitalRead(START_SWITCH_PIN) != HIGH ){
-     motor.speed(ARM_MOTOR_OUTPUT, 300);
+     motor.speed(ARM_MOTOR_OUTPUT, armSpeed);
      digitalWrite(START_SWITCH_PIN, HIGH);
   }
   
