@@ -63,9 +63,4 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     motor.speed(LEFT_MOTOR_OUTPUT, velocity-pd);
     time = time + 1;
     
-//  while(stopbutton())
-//  { 
-//    motor.stop(RIGHT_MOTOR_OUTPUT);
-//    motor.stop(LEFT_MOTOR_OUTPUT);
-//  }
 }

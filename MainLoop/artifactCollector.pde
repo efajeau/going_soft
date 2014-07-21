@@ -14,13 +14,8 @@ void swingArm(int armSpeed) {
   
 
   while(TRUE){
-    digitalWrite(END_SWITCH_PIN, HIGH);
-    if (digitalRead(END_SWITCH_PIN) == HIGH) {
-      delay(50);
-      digitalWrite(END_SWITCH_PIN, HIGH);
-      if (digitalRead(END_SWITCH_PIN) == HIGH) {
-        break;
-      }
+    if (digitalReadHighFilter(END_SWITCH_PIN)) {
+      break;
     }
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
 
@@ -34,20 +29,26 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,1); LCD.print("Forward");
  
   while(TRUE){
-    digitalWrite(START_SWITCH_PIN, HIGH);
-    if (digitalRead(START_SWITCH_PIN) == HIGH) {
-       delay(50);
-       digitalWrite(START_SWITCH_PIN, HIGH);
-       if (digitalRead(START_SWITCH_PIN) == HIGH) {
+     if (digitalReadHighFilter(START_SWITCH_PIN)) {
        break;
       }
-    }
     motor.speed(ARM_MOTOR_OUTPUT, 300);
-
   }
   
   LCD.clear();
   
   motor.stop(ARM_MOTOR_OUTPUT);
 
+}
+
+boolean digitalReadHighFilter(int pin) {
+  digitalWrite(pin, HIGH);
+    if (digitalRead(pin) == HIGH) {
+       delay(50);
+       digitalWrite(pin, HIGH);
+       if (digitalRead(pin) == HIGH) {
+         return true;
+      }
+    }
+    return false;
 }
