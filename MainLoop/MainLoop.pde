@@ -45,7 +45,6 @@ void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
 int tuneArm();
 void selectionMenu(int testOptions[]);
-void retry();
 
 void setup() {
   Serial.begin(9600);
@@ -105,8 +104,21 @@ void loop() {
   
   //Decide whether to keep parameters or retune
   while( TRUE != FALSE ) {
-    retry();
-  }
+    LCD.home();
+    LCD.setCursor(0,0); LCD.print("START: RETRY");
+    LCD.setCursor(0,1); LCD.print("STOP: RETUNE");
+  
+    if (startbutton()) {
+      tuning = FALSE;
+      break;
+    }
+    if (stopbutton()) {
+      tuning = TRUE;
+      break;
+    }
+  
+    LCD.clear();
+ }
 }
 
 //Initializes tuning for tape parameters
@@ -234,7 +246,7 @@ void selectionMenu(int testOptions[]) {
       }
       else if (testOptions[1] == FALSE) {
         LCD.setCursor(15, 0); LCD.print(" ");
-        if (stoptbutton()) {
+        if (stopbutton()) {
            testOptions[1] = TRUE;
         }
       }
@@ -274,25 +286,4 @@ void selectionMenu(int testOptions[]) {
     }
     LCD.clear();
   }
-}
-
-/**
- * Start button to retry with same parameters
- * Stop button to retune
- */
-void retry() {
-  LCD.home();
-  LCD.setCursor(0,0); LCD.print("START: RETRY");
-  LCD.setCursor(0,1); LCD.print("STOP: RETUNE");
-  
-  if (startbutton()) {
-    tuning = FALSE;
-    break();
-  }
-  if (stopbutton()) {
-    tuning = TRUE;
-    break();
-  }
-  
-  LCD.clear();
 }
