@@ -10,8 +10,8 @@
 
 //-----DIGITAL INPUTS-----//
 #define START_SWITCH_PIN 0
-#define END_SWITCH_PIN 1
-#define ARTIFACT_DETECT_SWITCH 2
+#define END_SWITCH_PIN 3
+#define ARTIFACT_DETECT_SWITCH 6
 #define ARM_MOTOR_OUTPUT 2
 
 #define TRUE 1
@@ -54,16 +54,17 @@ void setup() {
   pinMode(START_SWITCH_PIN, INPUT);
   pinMode(END_SWITCH_PIN, INPUT);
   pinMode(ARTIFACT_DETECT_SWITCH, INPUT);
-  digitalWrite(ARTIFACT_DETECT_SWITCH, HIGH);
+  
+  
 }
 
 void loop() {
   
+  if (tuning == TRUE) {
   //Start by selection which items to test
   selectionMenu(testOptions);
   
   //Then tune for the selected items
-  if (tuning == TRUE) {
     if (testOptions[TAPE_FOLLOWING] == TRUE) {
       tapeTuning(tapeValues);
       kp = tapeValues[0];
@@ -92,6 +93,7 @@ void loop() {
       Serial.println(velocity);
       Serial.println(testOptions[ARTIFACT_ARM]);
     }
+    digitalWrite(ARTIFACT_DETECT_SWITCH, HIGH);
     if (testOptions[ARTIFACT_ARM] == TRUE && digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
       motor.stop(0);
       motor.stop(1);
@@ -100,6 +102,11 @@ void loop() {
     if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
       IRFollowing(IR_velocity, IR_kp, IR_kd);
     }
+  }
+  
+  while(stopbutton()){
+    motor.stop(0);
+    motor.stop(1);
   }
   
   //Decide whether to keep parameters or retune
@@ -116,23 +123,31 @@ void loop() {
       tuning = TRUE;
       break;
     }
-  
+    
+    delay(10);
     LCD.clear();
+ }
+ 
+ while(startbutton()){
+   delay(50);
  }
 }
 
 //Initializes tuning for tape parameters
 void tapeTuning(int vals[]) {
   //MENU TO SET PID
-   while ( !(stopbutton()) ){
+   while ( !(startbutton()) ){
     vals[0] = knob(6);
     vals[1] = knob(7);
     LCD.home() ;
     LCD.setCursor(0,0); LCD.print("TAPE TUNING");
-    LCD.setCursor(0,0); LCD.print("P: "); LCD.print(vals[0]);
-    LCD.setCursor(0,1);LCD.print("D: "); LCD.print(vals[1]);
+    LCD.setCursor(0,1); LCD.print("P: "); LCD.print(vals[0]);
+    LCD.setCursor(8,1);LCD.print("D: "); LCD.print(vals[1]);
     delay(10);
     LCD.clear(); 
+  }
+  while(startbutton()){
+    delay(50);
   }
   //MENU TO SET THRESHOLD FOR QRD
   while ( !(startbutton()) ){
@@ -146,8 +161,9 @@ void tapeTuning(int vals[]) {
     LCD.clear();
   
   }
-  
-  while (startbutton() ){}
+  while (startbutton() ){
+    delay(50);
+  }
   //MENU TO SET SPEED
   while( !(startbutton()) ){
     vals[3] = knob(6);
@@ -156,9 +172,8 @@ void tapeTuning(int vals[]) {
       vals[3] = 700;
     }
     
-    LCD.setCursor(0,0); LCD.print("TAPE TUNING");
-    LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[3]);
-    LCD.setCursor(8,1); LCD.print("DELTA: "); LCD.print(vals[4]);
+    LCD.setCursor(0,0); LCD.print("SPEED: "); LCD.print(vals[3]);
+    LCD.setCursor(0,1); LCD.print("DELTA: "); LCD.print(vals[4]);
     delay(10);
     LCD.clear();
   }
@@ -166,7 +181,7 @@ void tapeTuning(int vals[]) {
 
 //Initializes tuning for IR parameters
 void IRTuning(int vals[]) {
-  while ( !(stopbutton()) ){
+  while ( !(startbutton()) ){
     vals[0] = knob(6);
     vals[1] = knob(7);
     LCD.home() ;
@@ -176,14 +191,21 @@ void IRTuning(int vals[]) {
     delay(10);
     LCD.clear(); 
   }
+  while(startbutton()){
+    delay(50);
+  }
   //MENU TO SET SPEED
   while( !(startbutton()) ){
+    int leftIR = analogRead(LEFT_IR_INPUT);
+    int rightIR = analogRead(RIGHT_IR_INPUT);
+    
     vals[2] = knob(6);
     if( vals[2] > 700 ){
       vals[2] = 700;
     }
     
-    LCD.setCursor(0,0); LCD.print("IT TUNING");
+    
+    LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR); LCD.print("R: "); LCD.print(rightIR);
     LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
     delay(10);
     LCD.clear();
@@ -195,12 +217,15 @@ int tuneArm() {
   
   int armSpeed = 0;
   
-  while( !(stopbutton()) ) {
+  while( !(startbutton()) ) {
      armSpeed = knob(6);
      LCD.home();
      LCD.setCursor(0,0); LCD.print("ARM SPEED: "); LCD.print(armSpeed);
      delay(10);
      LCD.clear();
+  }
+  while(startbutton()){
+    delay(50);
   }
   
   return armSpeed;
@@ -225,13 +250,15 @@ void selectionMenu(int testOptions[]) {
       if (testOptions[0] == TRUE) {
         LCD.setCursor(15, 0); LCD.print("*");
         if (stopbutton()) {
-           testOptions[0] = FALSE;
+          while(stopbutton()){}
+          testOptions[0] = FALSE;
         }
       }
       else if (testOptions[0] == FALSE) {
         LCD.setCursor(15, 0); LCD.print(" ");
         if (stopbutton()) {
-           testOptions[0] = TRUE;
+          while(stopbutton()){}
+          testOptions[0] = TRUE;
         }
       }
       delay(300);
@@ -241,13 +268,15 @@ void selectionMenu(int testOptions[]) {
       if (testOptions[1] == TRUE) {
         LCD.setCursor(15, 0); LCD.print("*");
         if (stopbutton()) {
-           testOptions[1] = FALSE;
+          while(stopbutton()){}
+          testOptions[1] = FALSE;
         }
       }
       else if (testOptions[1] == FALSE) {
         LCD.setCursor(15, 0); LCD.print(" ");
         if (stopbutton()) {
-           testOptions[1] = TRUE;
+          while(stopbutton()){}
+          testOptions[1] = TRUE;
         }
       }
       delay(100);
@@ -257,13 +286,15 @@ void selectionMenu(int testOptions[]) {
       if (testOptions[2] == TRUE) {
         LCD.setCursor(15, 0); LCD.print("*");
         if (stopbutton()) {
-           testOptions[2] = FALSE;
+          while(stopbutton()){}
+          testOptions[2] = FALSE;
         }
       }
       else if (testOptions[2] == FALSE) {
         LCD.setCursor(15, 0); LCD.print(" ");
         if (stopbutton()) {
-           testOptions[2] = TRUE;
+          while(stopbutton()){}
+          testOptions[2] = TRUE;
         }
       }
       delay(100);
@@ -273,17 +304,21 @@ void selectionMenu(int testOptions[]) {
       if (testOptions[3] == TRUE) {
         LCD.setCursor(15, 0); LCD.print("*");
         if (stopbutton()) {
+           while(stopbutton()){}
            testOptions[3] = FALSE;
         }
       }
       else if (testOptions[3] == FALSE) {
         LCD.setCursor(15, 0); LCD.print(" ");
         if (stopbutton()) {
-           testOptions[3] = TRUE;
+          while(stopbutton()){}
+          testOptions[3] = TRUE;
         }
       }
-      delay(100);
+      delay(10);
     }
     LCD.clear();
   }
+  
+  while(startbutton()){}
 }

@@ -28,7 +28,6 @@ int getIRSignal() {
 
 void IRFollowing(int velocity, int kd, int kp) {
   //IR CORRECTION ALGORITHM
-  while ( !(stopbutton()) ) {
 
     int leftIR = analogRead(LEFT_IR_INPUT);
     int rightIR = analogRead(RIGHT_IR_INPUT);
@@ -67,11 +66,10 @@ void IRFollowing(int velocity, int kd, int kp) {
       motor.stop(RIGHT_MOTOR_OUTPUT);
       motor.stop(LEFT_MOTOR_OUTPUT);
     }
-  }
   
-  while(stopbutton())
-  { 
-    motor.stop(RIGHT_MOTOR_OUTPUT);
-    motor.stop(LEFT_MOTOR_OUTPUT);
-  }
+//  while(stopbutton())
+//  { 
+//    motor.stop(RIGHT_MOTOR_OUTPUT);
+//    motor.stop(LEFT_MOTOR_OUTPUT);
+//  }
 }

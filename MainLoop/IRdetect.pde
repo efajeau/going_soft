@@ -2,8 +2,8 @@
 #include <LiquidCrystal.h>   
 #include <Servo253.h>     
 
-#define LEFT_IR_INPUT 1
-#define RIGHT_IR_INPUT 2
+#define LEFT_IR_INPUT 3
+#define RIGHT_IR_INPUT 4
 #define RIGHT_MOTOR_OUTPUT 0
 #define LEFT_MOTOR_OUTPUT 1
 #define STOPPING_SIGNAL 1100
@@ -28,7 +28,6 @@ int getIRSignal() {
 
 void IRFollowing(int velocity, int kd, int kp) {
   //IR CORRECTION ALGORITHM
-  while ( !(stopbutton()) ) {
 
     int leftIR = analogRead(LEFT_IR_INPUT);
     int rightIR = analogRead(RIGHT_IR_INPUT);
@@ -67,11 +66,10 @@ void IRFollowing(int velocity, int kd, int kp) {
       motor.stop(RIGHT_MOTOR_OUTPUT);
       motor.stop(LEFT_MOTOR_OUTPUT);
     }
-  }
   
-  while(stopbutton())
-  { 
-    motor.stop(RIGHT_MOTOR_OUTPUT);
-    motor.stop(LEFT_MOTOR_OUTPUT);
-  }
+//  while(stopbutton())
+//  { 
+//    motor.stop(RIGHT_MOTOR_OUTPUT);
+//    motor.stop(LEFT_MOTOR_OUTPUT);
+//  }
 }

@@ -30,7 +30,6 @@ int correction = 5;
 
 void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
   //TAPE FOLLOWING ALGORITHM
-  while ( !(stopbutton()) ) {
 
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
@@ -63,10 +62,10 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     motor.speed(RIGHT_MOTOR_OUTPUT, velocity+pd);
     motor.speed(LEFT_MOTOR_OUTPUT, velocity-pd);
     time = time + 1;
-  }
-  while(stopbutton())
-  { 
-    motor.stop(RIGHT_MOTOR_OUTPUT);
-    motor.stop(LEFT_MOTOR_OUTPUT);
-  }
+    
+//  while(stopbutton())
+//  { 
+//    motor.stop(RIGHT_MOTOR_OUTPUT);
+//    motor.stop(LEFT_MOTOR_OUTPUT);
+//  }
 }
