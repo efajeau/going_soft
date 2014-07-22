@@ -6,8 +6,9 @@
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
-#define LEFT_QRD_INPUT 3
-#define RIGHT_QRD_INPUT 4
+#define LEFT_QRD_INPUT 1
+#define RIGHT_QRD_INPUT 2
+
 #define LEFT_MOTOR_OUTPUT 1
 #define RIGHT_MOTOR_OUTPUT 0
 
@@ -28,9 +29,9 @@ int store_time;
 int correction = 5;
 //int delta = 0.0;
 
-void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
+void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
   //TAPE FOLLOWING ALGORITHM
-
+    int sign;
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
     LCD.clear(); LCD.home();
@@ -57,15 +58,18 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     p = kp*error;
     d = kd*(error - stored_lerr)/(store_time + time);
     //i = ki*error+i;
+    
     pd = p + d;
     
-    motor.speed(RIGHT_MOTOR_OUTPUT, velocity+pd);
-    motor.speed(LEFT_MOTOR_OUTPUT, velocity-pd);
+    if (forwards) {
+      sign = 1;
+    }
+    else {
+      sign = -1;
+    }
+    
+    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+pd));
+    motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-pd));
     time = time + 1;
     
-//  while(stopbutton())
-//  { 
-//    motor.stop(RIGHT_MOTOR_OUTPUT);
-//    motor.stop(LEFT_MOTOR_OUTPUT);
-//  }
 }

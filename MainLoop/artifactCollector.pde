@@ -2,9 +2,15 @@
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
+
 #define START_SWITCH_PIN 0
 #define END_SWITCH_PIN 3
 #define ARM_MOTOR_OUTPUT 2
+
+#define TRUE 1
+#define FALSE 0
+
+int digitalReadHighFilter(int pin);
 
 void swingArm(int armSpeed) {
   LCD.clear();  
@@ -41,14 +47,14 @@ void swingArm(int armSpeed) {
 
 }
 
-boolean digitalReadHighFilter(int pin) {
+int digitalReadHighFilter(int pin) {
   digitalWrite(pin, HIGH);
     if (digitalRead(pin) == HIGH) {
        delay(50);
        digitalWrite(pin, HIGH);
        if (digitalRead(pin) == HIGH) {
-         return true;
+         return TRUE;
       }
     }
-    return false;
+    return FALSE;
 }

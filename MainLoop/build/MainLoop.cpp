@@ -12,11 +12,15 @@
 #define START_SWITCH_PIN 0
 #define END_SWITCH_PIN 3
 #define ARTIFACT_DETECT_SWITCH 6
+
+//-----MOTOR OUTPUTS------//
+#define RIGHT_MOTOR_OUTPUT 0
+#define LEFT_MOTOR_OUTPUT 1
 #define ARM_MOTOR_OUTPUT 2
 
+//-----MISC. CONSTANTS----//
 #define TRUE 1
 #define FALSE 0
-
 #define TAPE_FOLLOWING 0
 #define ARTIFACT_ARM 1
 #define IR_SENSOR 2
@@ -31,12 +35,13 @@ void setup();
 void loop();
 void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
-int tuneArm();
+void tuneArm(int vals[]);
 void selectionMenu(int testOptions[]);
 int getIRSignal();
-void IRFollowing(int velocity, int kd, int kp);
+void IRFollowing(int velocity, int kd, int kp, int forwards);
 void swingArm(int armSpeed);
-void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta);
+int digitalReadHighFilter(int pin);
+void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards);
 int kp;
 int kd;
 int threshold;
@@ -48,14 +53,23 @@ int IR_velocity;
 int testSelect;
 int armSpeed;
 int tuning = TRUE;
+int count = 0;
+int countingArtifacts = FALSE;
+int forwards = TRUE;
+int maxAmplitude = 800;
+int countBackUp = 0;
+int backUp = 100;
+int maxTries = 2;
+int tries = 0;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
-int IRValues[3] = {0, 0, 0};
+int IRValues[4] = {0, 0, 0, 0};
 int testOptions[4] = {0, 0, 0, 0};
+int armParameters[2] = {0, 0};
 
 void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
-int tuneArm();
+void tuneArm(int vals[]);
 void selectionMenu(int testOptions[]);
 
 void setup() {
@@ -73,7 +87,7 @@ void setup() {
 void loop() {
   
   if (tuning == TRUE) {
-  //Start by selection which items to test
+  //Start by selecting which items to test
   selectionMenu(testOptions);
   
   //Then tune for the selected items
@@ -87,7 +101,9 @@ void loop() {
     }
   
     if (testOptions[ARTIFACT_ARM] == TRUE) {
-      armSpeed = tuneArm();
+      tuneArm(armParameters);
+      armSpeed = armParameters[0];
+      countingArtifacts = armParameters[1];
     }
   
     if (testOptions[IR_SENSOR] == TRUE) {
@@ -95,30 +111,52 @@ void loop() {
       IR_kp = IRValues[0];
       IR_kd = IRValues[1];
       IR_velocity = IRValues[2];
+      maxAmplitude = IRValues[3];
     }
   }
   
   //Operation of robot
   while(!stopbutton()) {
+    
+    if (testOptions[IR_SENSOR] == TRUE) {
+      if ((analogRead(LEFT_IR_INPUT)+analogRead(RIGHT_IR_INPUT)) > maxAmplitude*2) {
+        forwards = FALSE;
+        countBackUp = 0;
+      }
+      else if (countBackUp > backUp) {
+        forwards = TRUE;
+        tries++;
+      }
+      else {
+        countBackUp++;
+      }
+    }
+    if (testOptions[ARTIFACT_ARM] == TRUE) {
+      if (count == 3 && countingArtifacts || tries == maxTries) {
+          forwards = FALSE;
+      }
+    }
+    
     if (testOptions[TAPE_FOLLOWING] == TRUE) {
-      tapeFollowing(kp, kd, threshold, velocity, delta);
-      Serial.println(velocity);
-      Serial.println(testOptions[ARTIFACT_ARM]);
+      tapeFollowing(kp, kd, threshold, velocity, delta, forwards);
     }
     digitalWrite(ARTIFACT_DETECT_SWITCH, HIGH);
     if (testOptions[ARTIFACT_ARM] == TRUE && digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
-      motor.stop(0);
-      motor.stop(1);
+      motor.stop(RIGHT_MOTOR_OUTPUT);
+      motor.stop(LEFT_MOTOR_OUTPUT);
       swingArm(armSpeed);
+      count++;
     }
     if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
-      IRFollowing(IR_velocity, IR_kp, IR_kd);
+      testOptions[TAPE_FOLLOWING] = FALSE;
+      IRFollowing(IR_velocity, IR_kp, IR_kd, forwards);
     }
   }
   
   while(stopbutton()){
-    motor.stop(0);
-    motor.stop(1);
+    motor.stop(RIGHT_MOTOR_OUTPUT);
+    motor.stop(LEFT_MOTOR_OUTPUT);
+    delay(50);
   }
   
   //Decide whether to keep parameters or retune
@@ -139,8 +177,7 @@ void loop() {
     delay(10);
     LCD.clear();
  }
- 
- while(startbutton()){}
+ while(startbutton() || stopbutton()){delay(50);}
 }
 
 //Initializes tuning for tape parameters
@@ -156,9 +193,8 @@ void tapeTuning(int vals[]) {
     delay(10);
     LCD.clear(); 
   }
-  while(startbutton()){
-    delay(50);
-  }
+  while(startbutton()){delay(50);}
+  
   //MENU TO SET THRESHOLD FOR QRD
   while ( !(startbutton()) ){
     
@@ -171,9 +207,8 @@ void tapeTuning(int vals[]) {
     LCD.clear();
   
   }
-  while (startbutton() ){
-    delay(50);
-  }
+  while (startbutton()) {delay(50);}
+  
   //MENU TO SET SPEED
   while( !(startbutton()) ){
     vals[3] = knob(6);
@@ -187,6 +222,8 @@ void tapeTuning(int vals[]) {
     delay(10);
     LCD.clear();
   }
+  while (startbutton()){delay(50);}
+  
 }
 
 //Initializes tuning for IR parameters
@@ -201,44 +238,60 @@ void IRTuning(int vals[]) {
     delay(10);
     LCD.clear(); 
   }
-  while(startbutton()){
-    delay(50);
-  }
+  while(startbutton()){delay(50);}
+  
   //MENU TO SET SPEED
   while( !(startbutton()) ){
     int leftIR = analogRead(LEFT_IR_INPUT);
     int rightIR = analogRead(RIGHT_IR_INPUT);
     
     vals[2] = knob(6);
+    vals[3] = knob(7);
     if( vals[2] > 700 ){
       vals[2] = 700;
     }
     
     
     LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR); LCD.print("R: "); LCD.print(rightIR);
-    LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
+    LCD.setCursor(0,1); LCD.print("S: "); LCD.print(vals[2]);
+    LCD.setCursor(8,1); LCD.print("max: "); LCD.print(vals[3]);
     delay(10);
     LCD.clear();
   }
+  while(startbutton()){delay(50);}
+  
 }
 
 //Initializes tuning for arm parameters
-int tuneArm() {
-  
-  int armSpeed = 0;
+void tuneArm(int vals[]) {
   
   while( !(startbutton()) ) {
-     armSpeed = knob(6);
+     vals[0] = knob(6);
+     if (stopbutton()) {
+       delay(50);
+       if (stopbutton()) {
+         if (vals[1]) {
+           vals[1] = FALSE;
+         }
+         else {
+           vals[1] = TRUE;
+         }
+       }
+     }
+     LCD.clear();
      LCD.home();
-     LCD.setCursor(0,0); LCD.print("ARM SPEED: "); LCD.print(armSpeed);
+     LCD.setCursor(0,0); LCD.print("ARM SPEED: "); LCD.print(vals[0]);
+     LCD.setCursor(0,1); LCD.print("Counting: ");
+     if (vals[1]) {
+       LCD.print("T");
+     }
+     else {
+       LCD.print("F");
+     }
      delay(10);
      LCD.clear();
   }
-  while(startbutton()){
-    delay(50);
-  }
-  
-  return armSpeed;
+  while(startbutton()){delay(50);}
 }
 
 /**
@@ -329,15 +382,14 @@ void selectionMenu(int testOptions[]) {
     }
     LCD.clear();
   }
-  
-  while(startbutton()){}
+  while(startbutton()){delay(50);}
 }
 #include <phys253.h>         
 #include <LiquidCrystal.h>   
 #include <Servo253.h>     
 
-#define LEFT_IR_INPUT 1
-#define RIGHT_IR_INPUT 2
+#define LEFT_IR_INPUT 3
+#define RIGHT_IR_INPUT 4
 #define RIGHT_MOTOR_OUTPUT 0
 #define LEFT_MOTOR_OUTPUT 1
 #define STOPPING_SIGNAL 1100
@@ -360,7 +412,8 @@ int getIRSignal() {
   return (leftIR + rightIR);
 }
 
-void IRFollowing(int velocity, int kd, int kp) {
+void IRFollowing(int velocity, int kd, int kp, int forwards) {
+  int sign;
   //IR CORRECTION ALGORITHM
 
     int leftIR = analogRead(LEFT_IR_INPUT);
@@ -387,19 +440,26 @@ void IRFollowing(int velocity, int kd, int kp) {
     
     LCD.setCursor(8,1); LCD.print("PD:"); LCD.print(IR_pd);
     
-    motor.speed(RIGHT_MOTOR_OUTPUT, velocity+IR_pd);
-    motor.speed(LEFT_MOTOR_OUTPUT, velocity-IR_pd);
+    if (forwards) {
+      sign = 1;
+    }
+    else {
+      sign = -1;
+    }
+    
+    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+IR_pd));
+    motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-IR_pd));
     IR_time = IR_time + 1;
     
-    if( (leftIR+rightIR) > STOPPING_SIGNAL) {
-      LCD.clear();  LCD.home() ;
-      LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR);
-      LCD.setCursor(0,1); LCD.print("R: "); LCD.print(rightIR);
-      LCD.setCursor(1,0); LCD.print("END OF PATH");
-      
-      motor.stop(RIGHT_MOTOR_OUTPUT);
-      motor.stop(LEFT_MOTOR_OUTPUT);
-    }
+//    if( (leftIR+rightIR) > STOPPING_SIGNAL) {
+//      LCD.clear();  LCD.home() ;
+//      LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR);
+//      LCD.setCursor(0,1); LCD.print("R: "); LCD.print(rightIR);
+//      LCD.setCursor(1,0); LCD.print("END OF PATH");
+//      
+//      motor.stop(RIGHT_MOTOR_OUTPUT);
+//      motor.stop(LEFT_MOTOR_OUTPUT);
+//    }
   
 //  while(stopbutton())
 //  { 
@@ -411,11 +471,15 @@ void IRFollowing(int velocity, int kd, int kp) {
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
+
 #define START_SWITCH_PIN 0
 #define END_SWITCH_PIN 3
 #define ARM_MOTOR_OUTPUT 2
 
-void digitalCheck(int pinNum);
+#define TRUE 1
+#define FALSE 0
+
+int digitalReadHighFilter(int pin);
 
 void swingArm(int armSpeed) {
   LCD.clear();  
@@ -425,13 +489,8 @@ void swingArm(int armSpeed) {
   
 
   while(TRUE){
-    digitalWrite(END_SWITCH_PIN, HIGH);
-    if (digitalRead(END_SWITCH_PIN) == HIGH) {
-      delay(50);
-      digitalWrite(END_SWITCH_PIN, HIGH);
-      if (digitalRead(END_SWITCH_PIN) == HIGH) {
-        break;
-      }
+    if (digitalReadHighFilter(END_SWITCH_PIN)) {
+      break;
     }
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
 
@@ -445,16 +504,10 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,1); LCD.print("Forward");
  
   while(TRUE){
-    digitalWrite(START_SWITCH_PIN, HIGH);
-    if (digitalRead(START_SWITCH_PIN) == HIGH) {
-       delay(50);
-       digitalWrite(START_SWITCH_PIN, HIGH);
-       if (digitalRead(START_SWITCH_PIN) == HIGH) {
+     if (digitalReadHighFilter(START_SWITCH_PIN)) {
        break;
       }
-    }
-    motor.speed(ARM_MOTOR_OUTPUT, armSpeed);
-
+    motor.speed(ARM_MOTOR_OUTPUT, 300);
   }
   
   LCD.clear();
@@ -463,16 +516,17 @@ void swingArm(int armSpeed) {
 
 }
 
-//void digitalCheck(int pinNum) {
-//  digitalWrite(pinNum, HIGH);
-//  if (digitalRead(START_SWITCH_PIN) == HIGH) {
-//       delay(50);
-//       digitalWrite(START_SWITCH_PIN, HIGH);
-//       if (digitalRead(START_SWITCH_PIN) == HIGH) {
-//       break;
-//      }
-//    }
-//}
+int digitalReadHighFilter(int pin) {
+  digitalWrite(pin, HIGH);
+    if (digitalRead(pin) == HIGH) {
+       delay(50);
+       digitalWrite(pin, HIGH);
+       if (digitalRead(pin) == HIGH) {
+         return TRUE;
+      }
+    }
+    return FALSE;
+}
 /**
  * Tape following algorithm for an off-centre follow
  */
@@ -481,8 +535,9 @@ void swingArm(int armSpeed) {
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
-#define LEFT_QRD_INPUT 3
-#define RIGHT_QRD_INPUT 4
+#define LEFT_QRD_INPUT 1
+#define RIGHT_QRD_INPUT 2
+
 #define LEFT_MOTOR_OUTPUT 1
 #define RIGHT_MOTOR_OUTPUT 0
 
@@ -503,9 +558,9 @@ int store_time;
 int correction = 5;
 //int delta = 0.0;
 
-void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
+void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
   //TAPE FOLLOWING ALGORITHM
-
+    int sign;
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
     LCD.clear(); LCD.home();
@@ -532,16 +587,19 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     p = kp*error;
     d = kd*(error - stored_lerr)/(store_time + time);
     //i = ki*error+i;
+    
     pd = p + d;
     
-    motor.speed(RIGHT_MOTOR_OUTPUT, velocity+pd);
-    motor.speed(LEFT_MOTOR_OUTPUT, velocity-pd);
+    if (forwards) {
+      sign = 1;
+    }
+    else {
+      sign = -1;
+    }
+    
+    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+pd));
+    motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-pd));
     time = time + 1;
     
-//  while(stopbutton())
-//  { 
-//    motor.stop(RIGHT_MOTOR_OUTPUT);
-//    motor.stop(LEFT_MOTOR_OUTPUT);
-//  }
 }
 

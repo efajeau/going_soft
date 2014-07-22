@@ -2,11 +2,15 @@
 #include <LiquidCrystal.h>
 #include <Servo253.h>
 
+
 #define START_SWITCH_PIN 0
 #define END_SWITCH_PIN 3
 #define ARM_MOTOR_OUTPUT 2
 
-void digitalCheck(int pinNum);
+#define TRUE 1
+#define FALSE 0
+
+int digitalReadHighFilter(int pin);
 
 void swingArm(int armSpeed) {
   LCD.clear();  
@@ -16,13 +20,8 @@ void swingArm(int armSpeed) {
   
 
   while(TRUE){
-    digitalWrite(END_SWITCH_PIN, HIGH);
-    if (digitalRead(END_SWITCH_PIN) == HIGH) {
-      delay(50);
-      digitalWrite(END_SWITCH_PIN, HIGH);
-      if (digitalRead(END_SWITCH_PIN) == HIGH) {
-        break;
-      }
+    if (digitalReadHighFilter(END_SWITCH_PIN)) {
+      break;
     }
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
 
@@ -36,16 +35,10 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,1); LCD.print("Forward");
  
   while(TRUE){
-    digitalWrite(START_SWITCH_PIN, HIGH);
-    if (digitalRead(START_SWITCH_PIN) == HIGH) {
-       delay(50);
-       digitalWrite(START_SWITCH_PIN, HIGH);
-       if (digitalRead(START_SWITCH_PIN) == HIGH) {
+     if (digitalReadHighFilter(START_SWITCH_PIN)) {
        break;
       }
-    }
-    motor.speed(ARM_MOTOR_OUTPUT, armSpeed);
-
+    motor.speed(ARM_MOTOR_OUTPUT, 300);
   }
   
   LCD.clear();
@@ -54,13 +47,14 @@ void swingArm(int armSpeed) {
 
 }
 
-//void digitalCheck(int pinNum) {
-//  digitalWrite(pinNum, HIGH);
-//  if (digitalRead(START_SWITCH_PIN) == HIGH) {
-//       delay(50);
-//       digitalWrite(START_SWITCH_PIN, HIGH);
-//       if (digitalRead(START_SWITCH_PIN) == HIGH) {
-//       break;
-//      }
-//    }
-//}
+int digitalReadHighFilter(int pin) {
+  digitalWrite(pin, HIGH);
+    if (digitalRead(pin) == HIGH) {
+       delay(50);
+       digitalWrite(pin, HIGH);
+       if (digitalRead(pin) == HIGH) {
+         return TRUE;
+      }
+    }
+    return FALSE;
+}
