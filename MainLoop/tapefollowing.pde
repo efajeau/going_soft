@@ -13,29 +13,25 @@
 #define RIGHT_MOTOR_OUTPUT 0
 
 int error;
-int last_error;
-int stored_lerr;
-//int kp;
-//int kd;
-//int ki;                                   
+int last_error = 5;
+int stored_lerr;                                 
 int p;
 int d;
-//int i;
 int pd;
 int time;
 int store_time;
-//int threshold;
-//int velocity;
 int correction = 5;
-//int delta = 0.0;
 
-int tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
+int prevL= 0;
+int prevR = 0;
+
+void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
   //TAPE FOLLOWING ALGORITHM
     int sign;
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
-    LCD.clear(); LCD.home();
-    LCD.print("L: "); LCD.print(left); LCD.setCursor(8,0); LCD.print("R: "); LCD.print(right);
+//    LCD.clear(); LCD.home();
+//    LCD.print("L: "); LCD.print(left); LCD.setCursor(8,0); LCD.print("R: "); LCD.print(right);
     
     if ( (right > threshold) && (left > threshold) ){ error = 0;}
     if ( (right < threshold) && (left  > threshold) ) { error = 1; }
@@ -71,5 +67,16 @@ int tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int fo
     motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+pd));
     motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-pd));
     time = time + 1;
-    return pd;
+}
+
+void turnAround(int threshold) {
+
+  int left = analogRead(LEFT_QRD_INPUT);
+  int right = analogRead(RIGHT_QRD_INPUT);
+
+  motor.speed(RIGHT_MOTOR_OUTPUT, -200);
+  motor.speed(LEFT_MOTOR_OUTPUT, 200);
+  delay(200);
+
+  while( (left < threshold) || (right < threshold) ) {}
 }

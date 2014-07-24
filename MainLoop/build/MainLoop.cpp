@@ -40,7 +40,7 @@ void tuneArm(int vals[]);
 void selectionMenu(int testOptions[]);
 void setDefault();
 int getIRSignal();
-void IRFollowing(int velocity, int kd, int kp, int forwards);
+int IRFollowing(int velocity, int kd, int kp, int endIR, int forwards);
 void swingArm(int armSpeed);
 int digitalReadHighFilter(int pin);
 int tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards);
@@ -53,7 +53,8 @@ int IR_kp = 100;
 int IR_kd = 50;
 int IR_velocity = 200;
 int armSpeed = 550;
-int maxAmplitude = 800;
+int beginIR = 150;
+int endIR = 1600;
 int forwards = TRUE;
 int ramping = 1;
 
@@ -68,7 +69,7 @@ int tries = 0;
 int def = FALSE;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
-int IRValues[4] = {0, 0, 0, 0};
+int IRValues[5] = {0, 0, 0, 0, 0};
 int testOptions[4] = {0, 0, 0, 0};
 int armParameters[2] = {0, 0};
 
@@ -134,7 +135,8 @@ void loop() {
         IR_kp = IRValues[0];
         IR_kd = IRValues[1];
         IR_velocity = IRValues[2];
-        maxAmplitude = IRValues[3];
+        beginIR = IRValues[3];
+        endIR = IRValues[4];
       }
    }
   }
@@ -175,9 +177,14 @@ void loop() {
       else if (count==2)
         ramping = 0;
     }
-    if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
+    if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > beginIR) {
       testOptions[TAPE_FOLLOWING] = FALSE;
-      IRFollowing(IR_velocity, IR_kp, IR_kd, forwards);
+      IRFollowing(IR_velocity, IR_kp, IR_kd, endIR, forwards);
+      if (getIRSignal() >= endIR) {
+        motor.stop(RIGHT_MOTOR_OUTPUT);
+        motor.stop(LEFT_MOTOR_OUTPUT);
+        break;
+      }
     }
   }
   
@@ -273,20 +280,29 @@ void IRTuning(int vals[]) {
     int rightIR = analogRead(RIGHT_IR_INPUT);
     
     vals[2] = knob(6);
-    vals[3] = knob(7);
     if( vals[2] > 700 ){
       vals[2] = 700;
     }
     
     
     LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR); LCD.print("R: "); LCD.print(rightIR);
-    LCD.setCursor(0,1); LCD.print("S: "); LCD.print(vals[2]);
-    LCD.setCursor(8,1); LCD.print("max: "); LCD.print(vals[3]);
+    LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
     delay(10);
     LCD.clear();
   }
   while(startbutton()){delay(50);}
   
+  while(!(startbutton()) ) {
+    vals[3] = knob(6);
+    vals[4] =  floor(knob(7)/1023.0*2000.0);
+    
+    LCD.home();
+    LCD.setCursor(0,0); LCD.print("BEGIN: "); LCD.print(vals[3]);
+    LCD.setCursor(0,1); LCD.print("END: "); LCD.print(vals[4]);
+    delay(30);
+    LCD.clear();
+  }
+  while(startbutton()){delay(50);}
 }
 
 //Initializes tuning for arm parameters
@@ -422,7 +438,8 @@ void setDefault() {
   IR_kd = 50;
   IR_velocity = 200;
   armSpeed = 550;
-  maxAmplitude = 800;
+  beginIR = 150;
+  endIR = 1600;
   forwards = TRUE;
 }
 #include <phys253.h>         
@@ -433,7 +450,9 @@ void setDefault() {
 #define RIGHT_IR_INPUT 4
 #define RIGHT_MOTOR_OUTPUT 0
 #define LEFT_MOTOR_OUTPUT 1
-#define STOPPING_SIGNAL 1100
+
+#define TRUE 1;
+#define FALSE 0;
 
 int IR_error;
 int last_IR_error;
@@ -453,7 +472,7 @@ int getIRSignal() {
   return (leftIR + rightIR);
 }
 
-void IRFollowing(int velocity, int kd, int kp, int forwards) {
+int IRFollowing(int velocity, int kd, int kp, int endIR, int forwards) {
   int sign;
   //IR CORRECTION ALGORITHM
 
@@ -492,7 +511,7 @@ void IRFollowing(int velocity, int kd, int kp, int forwards) {
     motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-IR_pd));
     IR_time = IR_time + 1;
     
-//    if( (leftIR+rightIR) > STOPPING_SIGNAL) {
+//    if( (leftIR+rightIR) > endIR) {
 //      LCD.clear();  LCD.home() ;
 //      LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR);
 //      LCD.setCursor(0,1); LCD.print("R: "); LCD.print(rightIR);
@@ -500,6 +519,7 @@ void IRFollowing(int velocity, int kd, int kp, int forwards) {
 //      
 //      motor.stop(RIGHT_MOTOR_OUTPUT);
 //      motor.stop(LEFT_MOTOR_OUTPUT);
+//      motorStop = TRUE;
 //    }
   
 //  while(stopbutton())
@@ -530,9 +550,7 @@ void swingArm(int armSpeed) {
   
 
   while(TRUE){
-    if (digitalReadHighFilter(END_SWITCH_PIN)) {
-      break;
-    }
+    if (digitalReadHighFilter(END_SWITCH_PIN)){break;}
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
   }
   
@@ -544,9 +562,7 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,1); LCD.print("Forward");
  
   while(TRUE){
-     if (digitalReadHighFilter(START_SWITCH_PIN)) {
-       break;
-      }
+    if (digitalReadHighFilter(START_SWITCH_PIN)){break;}
     motor.speed(ARM_MOTOR_OUTPUT, 300);
   }
   

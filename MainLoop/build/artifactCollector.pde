@@ -20,9 +20,7 @@ void swingArm(int armSpeed) {
   
 
   while(TRUE){
-    if (digitalReadHighFilter(END_SWITCH_PIN)) {
-      break;
-    }
+    if (digitalReadHighFilter(END_SWITCH_PIN)){break;}
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
   }
   
@@ -34,9 +32,7 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,1); LCD.print("Forward");
  
   while(TRUE){
-     if (digitalReadHighFilter(START_SWITCH_PIN)) {
-       break;
-      }
+    if (digitalReadHighFilter(START_SWITCH_PIN)){break;}
     motor.speed(ARM_MOTOR_OUTPUT, 300);
   }
   

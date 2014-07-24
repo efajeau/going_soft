@@ -6,7 +6,9 @@
 #define RIGHT_IR_INPUT 4
 #define RIGHT_MOTOR_OUTPUT 0
 #define LEFT_MOTOR_OUTPUT 1
-#define STOPPING_SIGNAL 1100
+
+#define TRUE 1;
+#define FALSE 0;
 
 int IR_error;
 int last_IR_error;
@@ -26,7 +28,7 @@ int getIRSignal() {
   return (leftIR + rightIR);
 }
 
-void IRFollowing(int velocity, int kd, int kp, int forwards) {
+int IRFollowing(int velocity, int kd, int kp, int endIR, int forwards) {
   int sign;
   //IR CORRECTION ALGORITHM
 
@@ -65,7 +67,7 @@ void IRFollowing(int velocity, int kd, int kp, int forwards) {
     motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-IR_pd));
     IR_time = IR_time + 1;
     
-//    if( (leftIR+rightIR) > STOPPING_SIGNAL) {
+//    if( (leftIR+rightIR) > endIR) {
 //      LCD.clear();  LCD.home() ;
 //      LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR);
 //      LCD.setCursor(0,1); LCD.print("R: "); LCD.print(rightIR);
@@ -73,6 +75,7 @@ void IRFollowing(int velocity, int kd, int kp, int forwards) {
 //      
 //      motor.stop(RIGHT_MOTOR_OUTPUT);
 //      motor.stop(LEFT_MOTOR_OUTPUT);
+//      motorStop = TRUE;
 //    }
   
 //  while(stopbutton())

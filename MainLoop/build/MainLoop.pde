@@ -39,7 +39,8 @@ int IR_kp = 100;
 int IR_kd = 50;
 int IR_velocity = 200;
 int armSpeed = 550;
-int maxAmplitude = 800;
+int beginIR = 150;
+int endIR = 1600;
 int forwards = TRUE;
 int ramping = 1;
 
@@ -54,7 +55,7 @@ int tries = 0;
 int def = FALSE;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
-int IRValues[4] = {0, 0, 0, 0};
+int IRValues[5] = {0, 0, 0, 0, 0};
 int testOptions[4] = {0, 0, 0, 0};
 int armParameters[2] = {0, 0};
 
@@ -120,7 +121,8 @@ void loop() {
         IR_kp = IRValues[0];
         IR_kd = IRValues[1];
         IR_velocity = IRValues[2];
-        maxAmplitude = IRValues[3];
+        beginIR = IRValues[3];
+        endIR = IRValues[4];
       }
    }
   }
@@ -161,9 +163,14 @@ void loop() {
       else if (count==2)
         ramping = 0;
     }
-    if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
+    if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > beginIR) {
       testOptions[TAPE_FOLLOWING] = FALSE;
-      IRFollowing(IR_velocity, IR_kp, IR_kd, forwards);
+      IRFollowing(IR_velocity, IR_kp, IR_kd, endIR, forwards);
+      if (getIRSignal() >= endIR) {
+        motor.stop(RIGHT_MOTOR_OUTPUT);
+        motor.stop(LEFT_MOTOR_OUTPUT);
+        break;
+      }
     }
   }
   
@@ -259,20 +266,29 @@ void IRTuning(int vals[]) {
     int rightIR = analogRead(RIGHT_IR_INPUT);
     
     vals[2] = knob(6);
-    vals[3] = knob(7);
     if( vals[2] > 700 ){
       vals[2] = 700;
     }
     
     
     LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR); LCD.print("R: "); LCD.print(rightIR);
-    LCD.setCursor(0,1); LCD.print("S: "); LCD.print(vals[2]);
-    LCD.setCursor(8,1); LCD.print("max: "); LCD.print(vals[3]);
+    LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
     delay(10);
     LCD.clear();
   }
   while(startbutton()){delay(50);}
   
+  while(!(startbutton()) ) {
+    vals[3] = knob(6);
+    vals[4] =  floor(knob(7)/1023.0*2000.0);
+    
+    LCD.home();
+    LCD.setCursor(0,0); LCD.print("BEGIN: "); LCD.print(vals[3]);
+    LCD.setCursor(0,1); LCD.print("END: "); LCD.print(vals[4]);
+    delay(30);
+    LCD.clear();
+  }
+  while(startbutton()){delay(50);}
 }
 
 //Initializes tuning for arm parameters
@@ -408,6 +424,7 @@ void setDefault() {
   IR_kd = 50;
   IR_velocity = 200;
   armSpeed = 550;
-  maxAmplitude = 800;
+  beginIR = 150;
+  endIR = 1600;
   forwards = TRUE;
 }
