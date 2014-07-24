@@ -29,25 +29,29 @@
 //IR SIGNAL AT WHICH TO START CLIMBING
 #define IR_THRESHOLD 150
 
-int kp;
-int kd;
-int threshold;
-int velocity;
-int delta;
-int IR_kp;
-int IR_kd;
-int IR_velocity;
+//----DEFAULT PARAMETERS---//
+int kp = 100;
+int kd = 60;
+int threshold = 100;
+int velocity = 225;
+int delta = 0;
+int IR_kp = 100;
+int IR_kd = 50;
+int IR_velocity = 200;
+int armSpeed = 550;
+int maxAmplitude = 800;
+int forwards = TRUE;
+int ramping = 1;
+
 int testSelect;
-int armSpeed;
 int tuning = TRUE;
 int count = 0;
 int countingArtifacts = FALSE;
-int forwards = TRUE;
-int maxAmplitude = 800;
 int countBackUp = 0;
 int backUp = 100;
 int maxTries = 2;
 int tries = 0;
+int def = FALSE;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
 int IRValues[4] = {0, 0, 0, 0};
@@ -58,6 +62,7 @@ void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
 void tuneArm(int vals[]);
 void selectionMenu(int testOptions[]);
+void setDefault();
 
 void setup() {
   Serial.begin(9600);
@@ -67,65 +72,83 @@ void setup() {
   pinMode(START_SWITCH_PIN, INPUT);
   pinMode(END_SWITCH_PIN, INPUT);
   pinMode(ARTIFACT_DETECT_SWITCH, INPUT);
-  
-  
 }
 
 void loop() {
   
   if (tuning == TRUE) {
-  //Start by selecting which items to test
-  selectionMenu(testOptions);
-  
-  //Then tune for the selected items
-    if (testOptions[TAPE_FOLLOWING] == TRUE) {
-      tapeTuning(tapeValues);
-      kp = tapeValues[0];
-      kd = tapeValues[1];
-      threshold = tapeValues[2];
-      velocity = tapeValues[3];
-      delta = tapeValues[4];
+    //Start by selecting which items to test
+    selectionMenu(testOptions);
+    
+    while (true) {
+      LCD.home();
+      LCD.setCursor(0,0); LCD.print("DEFAULT VALUES?");
+      delay(20);
+      LCD.clear();
+      if (startbutton()) {
+        def = TRUE;
+        setDefault();
+        break;
+      }
+      if (stopbutton()) {
+        def = FALSE;
+        break;
+      }
     }
+    while(startbutton() || stopbutton()){delay(50);}
+    
+    
+    if (def == FALSE) {
+      //Then tune for the selected items
+      if (testOptions[TAPE_FOLLOWING] == TRUE) {
+        tapeTuning(tapeValues);
+        kp = tapeValues[0];
+        kd = tapeValues[1];
+        threshold = tapeValues[2];
+        velocity = tapeValues[3];
+        delta = tapeValues[4];
+      }
   
-    if (testOptions[ARTIFACT_ARM] == TRUE) {
-      tuneArm(armParameters);
-      armSpeed = armParameters[0];
-      countingArtifacts = armParameters[1];
-    }
+      if (testOptions[ARTIFACT_ARM] == TRUE) {
+        tuneArm(armParameters);
+        armSpeed = armParameters[0];
+        countingArtifacts = armParameters[1];
+      }
   
-    if (testOptions[IR_SENSOR] == TRUE) {
-      IRTuning(IRValues);
-      IR_kp = IRValues[0];
-      IR_kd = IRValues[1];
-      IR_velocity = IRValues[2];
-      maxAmplitude = IRValues[3];
-    }
+      if (testOptions[IR_SENSOR] == TRUE) {
+        IRTuning(IRValues);
+        IR_kp = IRValues[0];
+        IR_kd = IRValues[1];
+        IR_velocity = IRValues[2];
+        maxAmplitude = IRValues[3];
+      }
+   }
   }
   
   //Operation of robot
   while(!stopbutton()) {
     
-    if (testOptions[IR_SENSOR] == TRUE) {
-      if ((analogRead(LEFT_IR_INPUT)+analogRead(RIGHT_IR_INPUT)) > maxAmplitude*2) {
-        forwards = FALSE;
-        countBackUp = 0;
-      }
-      else if (countBackUp > backUp) {
-        forwards = TRUE;
-        tries++;
-      }
-      else {
-        countBackUp++;
-      }
-    }
-    if (testOptions[ARTIFACT_ARM] == TRUE) {
-      if (count == 3 && countingArtifacts || tries == maxTries) {
-          forwards = FALSE;
-      }
-    }
+//    if (testOptions[IR_SENSOR] == TRUE) {
+//      if ((analogRead(LEFT_IR_INPUT)+analogRead(RIGHT_IR_INPUT)) > maxAmplitude*2) {
+//        forwards = FALSE;
+//        countBackUp = 0;
+//      }
+//      else if (countBackUp > backUp) {
+//        forwards = TRUE;
+//        tries++;
+//      }
+//      else {
+//        countBackUp++;
+//      }
+//    }
+//    if (testOptions[ARTIFACT_ARM] == TRUE) {
+//      if (count == 3 && countingArtifacts || tries == maxTries) {
+//          forwards = FALSE;
+//      }
+//    }
     
     if (testOptions[TAPE_FOLLOWING] == TRUE) {
-      tapeFollowing(kp, kd, threshold, velocity, delta, forwards);
+      tapeFollowing(kp, kd, threshold, velocity+ramping, delta, forwards);
     }
     digitalWrite(ARTIFACT_DETECT_SWITCH, HIGH);
     if (testOptions[ARTIFACT_ARM] == TRUE && digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
@@ -133,6 +156,10 @@ void loop() {
       motor.stop(LEFT_MOTOR_OUTPUT);
       swingArm(armSpeed);
       count++;
+      if (count==1)
+        ramping = 100;
+      else if (count==2)
+        ramping = 0;
     }
     if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > IR_THRESHOLD) {
       testOptions[TAPE_FOLLOWING] = FALSE;
@@ -144,13 +171,15 @@ void loop() {
     motor.stop(RIGHT_MOTOR_OUTPUT);
     motor.stop(LEFT_MOTOR_OUTPUT);
     delay(50);
-  }
+  } 
   
   //Decide whether to keep parameters or retune
   while( TRUE != FALSE ) {
     LCD.home();
-    LCD.setCursor(0,0); LCD.print("START: RETRY");
+    LCD.setCursor(0,0); LCD.print("START: GO SOFT");
     LCD.setCursor(0,1); LCD.print("STOP: RETUNE");
+    delay(10);
+    LCD.clear();
   
     if (startbutton()) {
       tuning = FALSE;
@@ -160,9 +189,6 @@ void loop() {
       tuning = TRUE;
       break;
     }
-    
-    delay(10);
-    LCD.clear();
  }
  while(startbutton() || stopbutton()){delay(50);}
 }
@@ -370,4 +396,18 @@ void selectionMenu(int testOptions[]) {
     LCD.clear();
   }
   while(startbutton()){delay(50);}
+}
+
+void setDefault() {
+  kp = 100;
+  kd = 60;
+  threshold = 100;
+  velocity = 225;
+  delta = 0;
+  IR_kp = 100;
+  IR_kd = 50;
+  IR_velocity = 200;
+  armSpeed = 550;
+  maxAmplitude = 800;
+  forwards = TRUE;
 }

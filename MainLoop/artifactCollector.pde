@@ -24,7 +24,6 @@ void swingArm(int armSpeed) {
       break;
     }
     motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
-
   }
   
   LCD.clear();

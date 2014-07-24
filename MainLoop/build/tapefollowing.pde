@@ -29,7 +29,7 @@ int store_time;
 int correction = 5;
 //int delta = 0.0;
 
-void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
+int tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
   //TAPE FOLLOWING ALGORITHM
     int sign;
     int left = analogRead(LEFT_QRD_INPUT);
@@ -71,5 +71,5 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int f
     motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+pd));
     motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-pd));
     time = time + 1;
-    
+    return pd;
 }
