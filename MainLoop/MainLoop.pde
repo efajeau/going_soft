@@ -190,9 +190,9 @@ void loop() {
       if (count==2) {
         startSlowDown = millis();
       }
-      if (count==3 && testOptions[GO_HOME] == TRUE)
-        testOptions[ARTIFACT_ARM] == FALSE;
-        velocity -=30;
+      if (count==3 && testOptions[GO_HOME] == TRUE) {
+//        testOptions[ARTIFACT_ARM] == FALSE;
+//        velocity -=30;
         turnAround(turnSpeed, turnDiff, threshold);
     }
     if (count == 1 && ramping < 100) {
