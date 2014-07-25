@@ -43,7 +43,16 @@ void swingArm(int armSpeed) {
   LCD.clear();
   
   motor.stop(ARM_MOTOR_OUTPUT);
+  setLastError();
+}
 
+void armDown() {
+   while(TRUE){
+     if (digitalReadHighFilter(START_SWITCH_PIN)) {
+       break;
+      }
+    motor.speed(ARM_MOTOR_OUTPUT, 300);
+  }
 }
 
 int digitalReadHighFilter(int pin) {

@@ -24,15 +24,16 @@
 #define TAPE_FOLLOWING 0
 #define ARTIFACT_ARM 1
 #define IR_SENSOR 2
-#define REVERSE_DRIVING 3
+#define GO_HOME 3
+#define SLOWDOWN_TIME
 
 //IR SIGNAL AT WHICH TO START CLIMBING
 #define IR_THRESHOLD 150
 
 //----DEFAULT PARAMETERS---//
-int kp = 100;
-int kd = 60;
-int threshold = 100;
+int kp = 140;
+int kd = 70;
+int threshold = 115;
 int velocity = 225;
 int delta = 0;
 int IR_kp = 100;
@@ -42,8 +43,11 @@ int armSpeed = 550;
 int beginIR = 150;
 int endIR = 1600;
 int forwards = TRUE;
-int ramping = 1;
+int ramping = 0;
+int firstIteration = TRUE;
 
+long startSlowDown = 0;
+long startSpeedUp = 0;
 int testSelect;
 int tuning = TRUE;
 int count = 0;
@@ -53,17 +57,21 @@ int backUp = 100;
 int maxTries = 2;
 int tries = 0;
 int def = FALSE;
+int turnSpeed = 400;
+int turnDiff = 20;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
 int IRValues[5] = {0, 0, 0, 0, 0};
 int testOptions[4] = {0, 0, 0, 0};
 int armParameters[2] = {0, 0};
+int returnParams[2] = {0, 0};
 
 void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
 void tuneArm(int vals[]);
 void selectionMenu(int testOptions[]);
 void setDefault();
+void tuneGoHome();
 
 void setup() {
   Serial.begin(9600);
@@ -124,11 +132,30 @@ void loop() {
         beginIR = IRValues[3];
         endIR = IRValues[4];
       }
+      
+      if (testOptions[GO_HOME == TRUE]) {
+        tuneGoHome(returnParams);
+        turnSpeed = returnParams[0];
+        turnDiff = returnParams[1];
+      }
    }
   }
-  
+  int leftCheck;
+  int rightCheck;
+  while (!checkStartButton()) {
+    leftCheck = analogRead(LEFT_QRD_INPUT);
+    rightCheck = analogRead(RIGHT_QRD_INPUT);
+    LCD.clear();
+    LCD.home();
+    LCD.print("L: ");
+    LCD.print(leftCheck);
+    LCD.setCursor(0,1);
+    LCD.print("R: ");
+    LCD.print(rightCheck);
+    delay(100);
+  }
   //Operation of robot
-  while(!stopbutton()) {
+  while(!checkStopButton()) {
     
 //    if (testOptions[IR_SENSOR] == TRUE) {
 //      if ((analogRead(LEFT_IR_INPUT)+analogRead(RIGHT_IR_INPUT)) > maxAmplitude*2) {
@@ -159,13 +186,26 @@ void loop() {
       swingArm(armSpeed);
       count++;
       if (count==1)
+        startSpeedUp = millis();
+      if (count==2) {
+        startSlowDown = millis();
+      }
+      if (count==3 && testOptions[GO_HOME] == TRUE)
+        turnAround(turnSpeed, turnDiff, threshold);
+    }
+    if (count == 1 && ramping < 100) {
+      if ( ((millis()-startSpeedUp) >= 3000)) {
         ramping = 100;
-      else if (count==2)
+      }
+    }
+    else if (count == 2 && ramping > 0) {
+      if ( ((millis()-startSlowDown)) >= 3000 )
         ramping = 0;
     }
+    
     if (testOptions[IR_SENSOR] == TRUE && getIRSignal() > beginIR) {
       testOptions[TAPE_FOLLOWING] = FALSE;
-      IRFollowing(IR_velocity, IR_kp, IR_kd, endIR, forwards);
+      IRFollowing(IR_velocity, IR_kp, IR_kd, forwards);
       if (getIRSignal() >= endIR) {
         motor.stop(RIGHT_MOTOR_OUTPUT);
         motor.stop(LEFT_MOTOR_OUTPUT);
@@ -198,6 +238,9 @@ void loop() {
     }
  }
  while(startbutton() || stopbutton()){delay(50);}
+ count = 0;
+ ramping = 0;
+ firstIteration = TRUE;
 }
 
 //Initializes tuning for tape parameters
@@ -225,7 +268,7 @@ void tapeTuning(int vals[]) {
     LCD.setCursor(0,0); LCD.print("L: ");LCD.print(left); LCD.print(" R: ");LCD.print(right);
     delay(100);
     LCD.clear();
-  
+    
   }
   while (startbutton()) {delay(50);}
   
@@ -293,7 +336,6 @@ void IRTuning(int vals[]) {
 
 //Initializes tuning for arm parameters
 void tuneArm(int vals[]) {
-  
   while( !(startbutton()) ) {
      vals[0] = knob(6);
      if (stopbutton()) {
@@ -317,6 +359,21 @@ void tuneArm(int vals[]) {
      else {
        LCD.print("F");
      }
+     delay(10);
+     LCD.clear();
+  }
+  while(startbutton()){delay(50);}
+}
+
+void tuneGoHome(int vals[]) {
+  while(!startbutton()) {
+     vals[0] = knob(6);
+     vals[1] = knob(7);
+     
+     LCD.home();
+     LCD.setCursor(0,0); LCD.print("turn: "); LCD.print(vals[0]);
+     LCD.setCursor(0,1); LCD.print("diff: "); LCD.print(vals[1]);
+     
      delay(10);
      LCD.clear();
   }
@@ -392,7 +449,7 @@ void selectionMenu(int testOptions[]) {
       delay(100);
     }
     else {
-      LCD.print("Reverse Driving");
+      LCD.print("GO HOME");
       if (testOptions[3] == TRUE) {
         LCD.setCursor(15, 0); LCD.print("*");
         if (stopbutton()) {
@@ -415,9 +472,9 @@ void selectionMenu(int testOptions[]) {
 }
 
 void setDefault() {
-  kp = 100;
-  kd = 60;
-  threshold = 100;
+  kp = 95;
+  kd = 50;
+  threshold = 115;
   velocity = 225;
   delta = 0;
   IR_kp = 100;
@@ -427,4 +484,31 @@ void setDefault() {
   beginIR = 150;
   endIR = 1600;
   forwards = TRUE;
+  ramping = 0;
+  count = 0;
+  turnSpeed = 400;
+  turnDiff = 20;
+  firstIteration = TRUE;
 }
+
+int checkStartButton() {
+  if (startbutton()) {
+    delay(50);
+    if (startbutton()) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+int checkStopButton() {
+  if (stopbutton()) {
+    delay(50);
+    if (stopbutton()) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
