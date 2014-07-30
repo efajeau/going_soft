@@ -9,8 +9,15 @@
 
 #define TRUE 1
 #define FALSE 0
+#define ARM_TIMEOUT 20000
+#define ARM_DOWN_SPEED 600
+
+long startArm = 0;
 
 int digitalReadHighFilter(int pin);
+void armDown();
+void armUp(int motorSpeed);
+void swingArm(int armSpeed);
 
 void swingArm(int armSpeed) {
   LCD.clear();  
@@ -18,13 +25,7 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,0); LCD.print("Swinging");
   LCD.setCursor(0,1); LCD.print("Back");
   
-
-  while(TRUE){
-    if (digitalReadHighFilter(END_SWITCH_PIN)) {
-      break;
-    }
-    motor.speed(ARM_MOTOR_OUTPUT, -armSpeed);
-  }
+  armUp(armSpeed);
   
   LCD.clear();
   motor.stop(ARM_MOTOR_OUTPUT);
@@ -33,25 +34,33 @@ void swingArm(int armSpeed) {
   LCD.setCursor(0,0); LCD.print("Swinging Arm");
   LCD.setCursor(0,1); LCD.print("Forward");
  
-  while(TRUE){
-     if (digitalReadHighFilter(START_SWITCH_PIN)) {
-       break;
-      }
-    motor.speed(ARM_MOTOR_OUTPUT, 300);
-  }
-  
+  armDown(armSpeed);
+
   LCD.clear();
   
   motor.stop(ARM_MOTOR_OUTPUT);
   setLastError();
 }
 
-void armDown() {
+void armUp(int motorSpeed) {
+  startArm = millis();
+  while(TRUE) {
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
+  }
+}
+
+void armDown(int motorSpeed) {
+  startArm = millis();
    while(TRUE){
-     if (digitalReadHighFilter(START_SWITCH_PIN)) {
+     if (digitalReadHighFilter(START_SWITCH_PIN))
        break;
-      }
-    motor.speed(ARM_MOTOR_OUTPUT, 300);
+     if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    motor.speed(ARM_MOTOR_OUTPUT, motorSpeed);
   }
 }
 

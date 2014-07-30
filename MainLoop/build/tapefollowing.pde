@@ -11,6 +11,8 @@
 
 #define LEFT_MOTOR_OUTPUT 1
 #define RIGHT_MOTOR_OUTPUT 0
+#define POSITIVE 1
+#define NEGATIVE -1
 
 int error;
 int last_error = 5;
@@ -21,6 +23,8 @@ int pd;
 int time;
 int store_time;
 int correction = 5;
+int sign = 1;
+long startTime = 0;
 
 
 int offTape = FALSE;
@@ -52,10 +56,8 @@ void setLastError() {
 
 }
 
-
-void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int forwards) {
+void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
   //TAPE FOLLOWING ALGORITHM
-    int sign;
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
 //    LCD.clear(); LCD.home();
@@ -85,22 +87,15 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta, int f
     
     pd = p + d;
     
-    if (forwards) {
-      sign = 1;
-    }
-    else {
-      sign = -1;
-    }
-    
-    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+pd));
-    motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-pd));
+    motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+pd));
+    motor.speed(LEFT_MOTOR_OUTPUT, (velocity-pd));
     time = time + 1; 
 }
 
-void turnAround(int turnSpeed, int turnDiff, int threshold) {
+void turnAround(int turnSpeed, int threshold) {
   
-  motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed - turnDiff);
-  motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed + turnDiff);
+  motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
+  motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
   
   delay(500);
   
@@ -111,3 +106,29 @@ void turnAround(int turnSpeed, int turnDiff, int threshold) {
     right = analogRead(RIGHT_QRD_INPUT);
   } 
 }
+
+void sweep() {
+  int left = analogRead(LEFT_QRD_INPUT);
+  int right = analogRead(RIGHT_QRD_INPUT);
+
+  startTime = millis();
+  LCD.home();
+  LCD.setCursor(0,0);
+  LCD.print("SWEEPING");
+  while ( (left < threshold) || (right < threshold)) {
+    left = analogRead(LEFT_QRD_INPUT);
+    right = analogRead(RIGHT_QRD_INPUT);
+
+    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(-500) );
+    motor.speed(LEFT_MOTOR_OUTPUT, sign*500);
+
+    if ( ((millis() - startTime) % 2000) == 0 )  {
+      if (sign == POSITIVE)
+        sign = NEGATIVE;
+      else if (sign == NEGATIVE)
+        sign = POSITIVE;
+    }
+  }
+  LCD.clear();
+}
+

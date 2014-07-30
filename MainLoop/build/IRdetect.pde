@@ -28,8 +28,8 @@ int getIRSignal() {
   return (leftIR + rightIR);
 }
 
-int IRFollowing(int velocity, int kd, int kp, int forwards) {
-  int sign;
+int IRFollowing(int velocity, int kd, int kp) {
+    int sign;
   //IR CORRECTION ALGORITHM
 
     int leftIR = analogRead(LEFT_IR_INPUT);
@@ -55,14 +55,14 @@ int IRFollowing(int velocity, int kd, int kp, int forwards) {
     
     LCD.setCursor(8,1); LCD.print("PD:"); LCD.print(IR_pd);
     
-    if (forwards) {
-      sign = 1;
-    }
-    else {
-      sign = -1;
-    }
-    
-    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(velocity+IR_pd));
-    motor.speed(LEFT_MOTOR_OUTPUT, sign*(velocity-IR_pd));
+    motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+IR_pd));
+    motor.speed(LEFT_MOTOR_OUTPUT, (velocity-IR_pd));
     IR_time = IR_time + 1;
+}
+
+void rockTurning(int turnSpeed, int threshold) {
+  motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
+  motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
+  
+  while ( getIRSignal() < threshold ) {} 
 }
