@@ -21,11 +21,30 @@ int IR_pd;
 int IR_time;
 int IR_store_time;
 
+int readings[10];
+double avgSignal = 0.0;
+
 int getIRSignal() {
   int leftIR = analogRead(LEFT_IR_INPUT);
   int rightIR = analogRead(RIGHT_IR_INPUT);
-  
+
   return (leftIR + rightIR);
+}
+
+double getAverageIRSignal() {
+
+  int leftIR = 0;
+  int rightIR = 0;
+
+  for (int i = 0; i < 10; i++) {
+    leftIR = analogRead(LEFT_IR_INPUT);
+    rightIR = analogRead(RIGHT_IR_INPUT);
+    avgSignal += leftIR + rightIR;
+  }
+
+  avgSignal = avgSignal/10.0;
+
+  return avgSignal;
 }
 
 int IRFollowing(int velocity, int kd, int kp) {
@@ -64,5 +83,5 @@ void rockTurning(int turnSpeed, int threshold) {
   motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
   motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
   
-  while ( getIRSignal() < threshold ) {} 
+  while ( getAverageIRSignal() < threshold ) {} 
 }

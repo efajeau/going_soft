@@ -19,55 +19,57 @@ void armDown();
 void armUp(int motorSpeed);
 void swingArm(int armSpeed);
 
-void swingArm(int armSpeed) {
-  LCD.clear();  
-  LCD.home();
-  LCD.setCursor(0,0); LCD.print("Swinging");
-  LCD.setCursor(0,1); LCD.print("Back");
+void swingArm(int armSpeed, int kp, int kd, int threshold, int velocity, int delta) {
+
   
-  armUp(armSpeed);
+  armUp(armSpeed, kp, kd, threshold, velocity, delta);
   
-  LCD.clear();
   motor.stop(ARM_MOTOR_OUTPUT);
 
-  LCD.home();
-  LCD.setCursor(0,0); LCD.print("Swinging Arm");
-  LCD.setCursor(0,1); LCD.print("Forward");
- 
-  armDown(armSpeed);
-
-  LCD.clear();
+  armDown(armSpeed, kp, kd, threshold, velocity, delta);
   
   motor.stop(ARM_MOTOR_OUTPUT);
-  setLastError();
+  
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+
 }
 
-void armUp(int motorSpeed) {
+void armUp(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta) {
+
   startArm = millis();
+  motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
+  delay(200);
+  // LCD.clear();  
+  // LCD.home();
+  // LCD.setCursor(0,0); LCD.print("Swinging");
+  // LCD.setCursor(0,1); LCD.print("Back");
+
   while(TRUE) {
     if (digitalReadHighFilter(END_SWITCH_PIN))
       break;
     if ( (millis() - startArm) >= ARM_TIMEOUT )
       break; 
-    motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
+    tapeFollowing(kp, kd, threshold, velocity, delta);
   }
 }
 
-void armDown(int motorSpeed) {
+void armDown(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta) {
+  tapeFollowing(kp, kd, threshold, velocity, delta);
   startArm = millis();
+  motor.speed(ARM_MOTOR_OUTPUT, motorSpeed);
    while(TRUE){
      if (digitalReadHighFilter(START_SWITCH_PIN))
        break;
      if ( (millis() - startArm) >= ARM_TIMEOUT )
       break; 
-    motor.speed(ARM_MOTOR_OUTPUT, motorSpeed);
+    tapeFollowing(kp, kd, threshold, velocity, delta);
   }
 }
 
 int digitalReadHighFilter(int pin) {
   digitalWrite(pin, HIGH);
     if (digitalRead(pin) == HIGH) {
-       delay(50);
+       delay(10);
        digitalWrite(pin, HIGH);
        if (digitalRead(pin) == HIGH) {
          return TRUE;

@@ -23,7 +23,7 @@ int pd;
 int time;
 int store_time;
 int correction = 5;
-int sign = 1;
+int sign = POSITIVE;
 long startTime = 0;
 
 
@@ -60,8 +60,6 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
   //TAPE FOLLOWING ALGORITHM
     int left = analogRead(LEFT_QRD_INPUT);
     int right = analogRead(RIGHT_QRD_INPUT);
-//    LCD.clear(); LCD.home();
-//    LCD.print("L: "); LCD.print(left); LCD.setCursor(8,0); LCD.print("R: "); LCD.print(right);
     
     if ( (right > threshold) && (left > threshold) ){ error = 0;}
     if ( (right < threshold) && (left  > threshold) ) { error = 1; }
@@ -115,12 +113,12 @@ void sweep() {
   LCD.home();
   LCD.setCursor(0,0);
   LCD.print("SWEEPING");
-  while ( (left < threshold) || (right < threshold)) {
+  while ( (left < threshold) && (right < threshold)) {
     left = analogRead(LEFT_QRD_INPUT);
     right = analogRead(RIGHT_QRD_INPUT);
 
-    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(-500) );
-    motor.speed(LEFT_MOTOR_OUTPUT, sign*500);
+    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(600) );
+    motor.speed(LEFT_MOTOR_OUTPUT, sign*(-600));
 
     if ( ((millis() - startTime) % 2000) == 0 )  {
       if (sign == POSITIVE)
