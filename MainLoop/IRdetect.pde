@@ -10,8 +10,8 @@
 #define TRUE 1;
 #define FALSE 0;
 
-int IR_error;
-int last_IR_error;
+int IR_error = 0;
+int last_IR_error = 0;
 int stored_IR_lerr;
 int IR_ki;
 int IR_p;
@@ -20,9 +20,10 @@ int IR_d;
 int IR_pd;
 int IR_time;
 int IR_store_time;
-
-int readings[10];
-double avgSignal = 0.0;
+int IR_threshold = 100;
+long startTurning = 0;
+int writeCount = 0;
+int tolerance = 15;
 
 int getIRSignal() {
   int leftIR = analogRead(LEFT_IR_INPUT);
@@ -31,35 +32,119 @@ int getIRSignal() {
   return (leftIR + rightIR);
 }
 
-double getAverageIRSignal() {
-
+double getAverageIRSignal(double iterations) {
+  double avgSignal = 0.0;
   int leftIR = 0;
   int rightIR = 0;
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < iterations; i++) {
     leftIR = analogRead(LEFT_IR_INPUT);
     rightIR = analogRead(RIGHT_IR_INPUT);
     avgSignal += leftIR + rightIR;
   }
 
-  avgSignal = avgSignal/10.0;
+  avgSignal = avgSignal/iterations;
 
   return avgSignal;
 }
 
-int IRFollowing(int velocity, int kd, int kp) {
+int getAvgLeftSignal() {
+  double avgSignal = 0.0;
+  
+  for (int i = 0; i < 5; i++) {
+    avgSignal += analogRead(LEFT_IR_INPUT);
+  }
+  
+  avgSignal = avgSignal/5.0;
+  return floor(avgSignal);
+}
+
+int getAvgRightSignal() {
+  double avgSignal = 0.0;
+  
+  for (int i = 0; i < 5; i++) {
+    avgSignal += analogRead(RIGHT_IR_INPUT);
+  }
+  
+  avgSignal = avgSignal/5.0;
+  return floor(avgSignal);
+}
+
+int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
     int sign;
   //IR CORRECTION ALGORITHM
 
-    int leftIR = analogRead(LEFT_IR_INPUT);
-    int rightIR = analogRead(RIGHT_IR_INPUT);
-    delay(10);
-    LCD.clear(); LCD.home();
-    LCD.print("L: "); LCD.print(leftIR); LCD.setCursor(8,0); LCD.print("R: "); LCD.print(rightIR);
-    LCD.setCursor(0,1); LCD.print("ER: "); LCD.print(IR_error); 
+    int leftIR = getAvgLeftSignal() - 15;
+    int rightIR = getAvgRightSignal();
+//    delay(10);
+//    LCD.clear(); LCD.home();
+//    LCD.print("L: "); LCD.print(leftIR); LCD.setCursor(8,0); LCD.print("R: "); LCD.print(rightIR);
+//    LCD.setCursor(0,1); LCD.print("ER: "); LCD.print(IR_error); 
     
-    IR_error = (leftIR - rightIR);
+    
 
+
+    if ( (rightIR < offIR) && (leftIR < offIR) ) {
+      if (last_IR_error < 0 ){
+        IR_error = -IRcorrection;
+        if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print("neg cor");
+        }
+      }
+      else if (last_IR_error >= 0){
+        IR_error = IRcorrection;
+         if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print("pos cor");
+        }
+      }
+    }
+    else if ( (rightIR < offIR) && (leftIR  > offIR) ) { 
+          IR_error = IRcorrection/2.0;
+        if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print("pos small");
+        }
+    }
+
+    else if ( (leftIR < offIR) && (rightIR > offIR) ) { 
+          IR_error = -IRcorrection/2.0;
+        if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print("neg small");
+        }
+    }
+    else if (rightIR > offIR && leftIR > offIR && abs(leftIR-rightIR) < tolerance) {
+      IR_error = 0;
+      if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print("center");
+      }
+    }
+    else {
+          IR_error = (leftIR - rightIR);
+       if (writeCount > 1000) {
+           writeCount = 0;
+           LCD.clear();
+           LCD.home();
+           LCD.print(IR_error);
+      }
+
+    }
+
+
+    
     if (last_IR_error != IR_error ){
       stored_IR_lerr = last_IR_error;
       last_IR_error = IR_error;
@@ -67,21 +152,51 @@ int IRFollowing(int velocity, int kd, int kp) {
       IR_time = 1;
     }
      
-    IR_p = kp*IR_error/sqrt(leftIR+rightIR);
-    IR_d = kd*(IR_error - stored_IR_lerr)/(IR_store_time + IR_time);
+    int IR_test = (double)kp*(double)IR_error/((double)sqrt(((double)(leftIR+rightIR))));
+    IR_p = IR_error;
+    
+    //IR_d = kd*(IR_error - stored_IR_lerr)/(IR_store_time + IR_time);
     //IR_i = IR_ki*IR_error+IR_i;
-    IR_pd = (IR_p + IR_d);
+    IR_pd = IR_p ;
+//    if (writeCount > 10) {
+//      LCD.clear();
+//      LCD.home();
+//      LCD.print("PD:"); LCD.print(IR_pd);
+//      writeCount = 0;
+//    }
+    if (writeCount == 0) {
+      LCD.setCursor(0,1);
+      LCD.print(IR_test);
+    }
     
-    LCD.setCursor(8,1); LCD.print("PD:"); LCD.print(IR_pd);
-    
-    motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+IR_pd));
-    motor.speed(LEFT_MOTOR_OUTPUT, (velocity-IR_pd));
+    int thresh = 1020 - velocity;
+    if (IR_pd > thresh) {
+      IR_pd = thresh;
+    } else if (IR_pd < -thresh) {
+      IR_pd = -thresh;
+    }
+    if (writeCount == 0) {
+      LCD.setCursor(8,1);
+      LCD.print("after: ");
+      LCD.print(IR_pd);
+    }
+    motor.speed(RIGHT_MOTOR_OUTPUT, velocity + IR_pd);
+    motor.speed(LEFT_MOTOR_OUTPUT, velocity - IR_pd);
     IR_time = IR_time + 1;
+    writeCount++;
 }
 
 void rockTurning(int turnSpeed, int threshold) {
   motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
   motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
   
-  while ( getAverageIRSignal() < threshold ) {} 
+  startTurning = millis();
+  while ( getAverageIRSignal(10.0) < threshold ) {
+    if ( (millis() - startTurning) > 10000) {
+      motor.speed(RIGHT_MOTOR_OUTPUT, 500);
+      motor.speed(LEFT_MOTOR_OUTPUT, 500);
+      delay(500);
+      startTurning = millis();
+    }
+  } 
 }

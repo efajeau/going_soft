@@ -25,9 +25,11 @@
 #define ARTIFACT_ARM 1
 #define IR_SENSOR 2
 #define GO_HOME 3
-#define RAMP_DELAY 3500
+#define RAMP_DELAY 4000
 #define RAMP_SPEED 100
 #define SLOW_DOWN 0
+
+#define NUM_PARAMS 17
 
 //----DEFAULT PARAMETERS---//
 int kp = 120;
@@ -47,6 +49,13 @@ int turnCount = 4;
 int goingHome = FALSE;
 int returnIRStart = 200;
 int returnIRStop = 1300;
+int firstIteration = TRUE;
+int offIR = 100;
+int IRcorrection = 100;
+int aboveIRthresh = FALSE;
+
+int leftIRcheck = 0;
+int rightIRcheck = 0;
 
 //----TEMPORARY VALUES---//
 long startSlowDown = 0;
@@ -71,6 +80,10 @@ int armParameters[1] = {0};
 int returnParams[2] = {0, 0};
 int returnIRParams[2] = {0, 0};
 
+String paramNames[NUM_PARAMS] = {"kp", "kd", "thresh", "speed", "delta", "armSpeed", "IRkp", "IRkd", "IRSpeed", "beginIR", "endIR", "turnSpeed", "turnCount", "Leave", "offRocks", "offIR", "IRcorrection"};
+int tuningVals[NUM_PARAMS] =    {120,   60,    300,      200,     0,       550,      120,     60,      450,       125,      2000,     1000,        4,          100,     1300,        100,    100};
+double maxVals[NUM_PARAMS] = {1023.0, 1023.0, 1023.0, 900.0, 5.0, 1023.0, 1023.0, 1023.0, 1023.0, 2000, 1023.0, 1023.0, 5.0, 1023.0, 1023.0, 1023.0, 1023.0};
+
 void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
 void tuneArm(int vals[]);
@@ -81,6 +94,7 @@ void tuneGoHome();
 void tuneHomeIR();
 int checkStartButton();
 int checkStopButton();
+void newTuningMenu(int vals[]);
 
 void setup() {
   portMode(0, INPUT);
@@ -102,63 +116,21 @@ void loop() {
     IRsensor = testOptions[IR_SENSOR];
     goHome = testOptions[GO_HOME];
 
-    //Prompt for Default Values
-    while (true) {
-      LCD.home();
-      LCD.setCursor(0,0); LCD.print("DEFAULT VALUES?");
-      delay(20);
-      LCD.clear();
-      if (startbutton()) {
-        def = TRUE;
-        setDefault();
-        break;
-      }
-      if (stopbutton()) {
-        def = FALSE;
-        break;
-      }
-    }
-    while(startbutton() || stopbutton()){delay(50);}
-    
-    //Tuning for Selected Tests if not Default
-    if (def == FALSE) {
-      if (followingTape == TRUE) {
-        tapeTuning(tapeValues);
-        kp = tapeValues[0];
-        kd = tapeValues[1];
-        threshold = tapeValues[2];
-        velocity = tapeValues[3];
-        delta = tapeValues[4];
-      }
-  
-      if (artifactArm == TRUE) {
-        tuneArm(armParameters);
-        armSpeed = armParameters[0];
-      }
-  
-      if (IRsensor == TRUE) {
-        IRTuning(IRValues);
-        IR_kp = IRValues[0];
-        IR_kd = IRValues[1];
-        IR_velocity = IRValues[2];
-        beginIR = IRValues[3];
-        endIR = IRValues[4];
-      }
-      
-      if (goHome == TRUE) {
-        tuneGoHome(returnParams);
-        turnSpeed = returnParams[0];
-        turnCount = returnParams[1];
-      }
-
-      if (goHome == TRUE && IRsensor == TRUE) {
-        tuneHomeIR(returnIRParams);
-        returnIRStart = returnIRParams[0];
-        returnIRStop = returnIRParams[1];
-      }
-    }
+    setDefault();
+    newTuningMenu(tuningVals);
   }
   //Check To See If on Tape
+  while(!checkStartButton()) {
+    leftIRcheck = getAvgLeftSignal();
+    rightIRcheck = getAvgRightSignal();
+    LCD.home();
+    LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIRcheck); 
+    LCD.setCursor(8,0); LCD.print("R: "); LCD.print(rightIRcheck);
+
+    delay(50);
+    LCD.clear();
+  }while (startbutton()){delay(50);}
+
   while (!checkStartButton()) {
      leftCheck = analogRead(LEFT_QRD_INPUT);
      rightCheck = analogRead(RIGHT_QRD_INPUT);
@@ -166,13 +138,23 @@ void loop() {
      LCD.home();
      LCD.print("L: ");
      LCD.print(leftCheck);
-     LCD.setCursor(0,1);
+     LCD.setCursor(8,0);
      LCD.print("R: ");
      LCD.print(rightCheck);
-     delay(20);
+     
+     threshold = knob(6);
+     LCD.setCursor(0,1);
+     LCD.print("thresh: "); LCD.print(threshold);
+     delay(50);
    }
   //Operation of robot
-  //armDown();
+  //if () {
+    if (followingTape == TRUE)
+      armDown(armSpeed, kp, kd, threshold, velocity, delta);
+    else 
+      armDownNoFollow(armSpeed);
+ // }
+
   while(!checkStopButton()) {
     //Follow Tape
     if (followingTape == TRUE) {
@@ -187,15 +169,27 @@ void loop() {
       motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping);
       startTimeBack = millis();
       setLastError();
-      LCD.print("BACK UP");
-      while( (millis() - startTimeBack) < (long)500) {}{
+      while( (millis() - startTimeBack) < (long)375) {
         setLastError();
       }
-      LCD.clear();
       motor.stop(RIGHT_MOTOR_OUTPUT);
       motor.stop(LEFT_MOTOR_OUTPUT);
 
-      swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
+      if (count == 3) {
+        armUpNoFollow(armSpeed);
+        armDownABit();
+      }
+      else if (count == 2) {
+        armUpIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
+        int haveIRlower = armDownIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
+        if (haveIRlower) {
+         followingTape = FALSE;
+         aboveIRthresh = TRUE;
+       }
+      }
+      else {
+        swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
+      }
       count++;
       if (count==1)
         startSpeedUp = millis();
@@ -211,20 +205,29 @@ void loop() {
     }
     //Slow Down after 2 Artifacts
     else if (count == 2 && ramping > 0) {
-      if ( ((millis()-startSlowDown)) >= RAMP_DELAY )
+      if ( ((millis()-startSlowDown)) >= 3000 )
         ramping = 0;
     }
     //IR Follow after 3 Artifacts & above threshold
-    if (IRsensor == TRUE && getIRSignal() >= beginIR && count >= 3) {
+    if (IRsensor == TRUE && getAvgLeftSignal() >= beginIR && getAvgRightSignal() >= beginIR && count >= 3 && aboveIRthresh == FALSE) {
       followingTape = FALSE;
-      IRFollowing(IR_velocity, IR_kp, IR_kd);
+      LCD.home();
+      LCD.print("IR FOLLOWING");
+      aboveIRthresh = TRUE;
+    }
+    if (aboveIRthresh == TRUE) {
+      IRFollowing(IR_velocity, IR_kp, IR_kd, offIR, IRcorrection);
     }
     //Turn Around after set # of artifacts
     if (goHome == TRUE && count == turnCount) {
       artifactArm = FALSE;
       velocity -= SLOW_DOWN;
-      //turnAround(turnSpeed, threshold);
-      rockTurning(turnSpeed, returnIRStart);
+      if (turnCount < 4) {
+        turnAround(turnSpeed, threshold);
+      }
+      else {
+        rockTurning(turnSpeed, returnIRStart);
+      }
       beginIR = returnIRStart;
       goingHome = TRUE;
       goHome = FALSE;
@@ -234,6 +237,7 @@ void loop() {
       IRsensor = FALSE;
       followingTape = TRUE;
       sweep();
+      tapeFollowing(kp, kd, threshold, velocity+ramping, delta);
     }
   }
   
@@ -265,139 +269,45 @@ void loop() {
   resetTempValues();
 }
 
-//Initializes tuning for tape parameters
-void tapeTuning(int vals[]) {
-  //MENU TO SET PID
-   while ( !(startbutton()) ){
-    vals[0] = knob(6);
-    vals[1] = knob(7);
-    LCD.home() ;
-    LCD.setCursor(0,0); LCD.print("TAPE TUNING");
-    LCD.setCursor(0,1); LCD.print("P: "); LCD.print(vals[0]);
-    LCD.setCursor(8,1);LCD.print("D: "); LCD.print(vals[1]);
-    delay(10);
-    LCD.clear(); 
-  }
-  while(startbutton()){delay(50);}
-  
-  //MENU TO SET THRESHOLD FOR QRD
-  while ( !(startbutton()) ){
-    
-    int left = analogRead(LEFT_QRD_INPUT);
-    int right = analogRead(RIGHT_QRD_INPUT);
-    vals[2] = knob(6);
-    LCD.setCursor(0,1); LCD.print("Threshold: ");LCD.print(vals[2]);
-    LCD.setCursor(0,0); LCD.print("L: ");LCD.print(left); LCD.print(" R: ");LCD.print(right);
-    delay(100);
-    LCD.clear();
-    
-  }
-  while (startbutton()) {delay(50);}
-  
-  //MENU TO SET SPEED
-  while( !(startbutton()) ){
-    vals[3] = knob(6);
-    vals[4] = floor(knob(7)/1023.0*5.0);
-    if( vals[3] > 700 ){
-      vals[3] = 700;
-    }
-    
-    LCD.setCursor(0,0); LCD.print("SPEED: "); LCD.print(vals[3]);
-    LCD.setCursor(0,1); LCD.print("DELTA: "); LCD.print(vals[4]);
-    delay(10);
-    LCD.clear();
-  }
-  while (startbutton()){delay(50);}
-  
-}
-
-//Initializes tuning for IR parameters
-void IRTuning(int vals[]) {
-  while ( !(startbutton()) ){
-    vals[0] = knob(6);
-    vals[1] = knob(7);
-    LCD.home() ;
-    LCD.setCursor(0,0); LCD.print("Tuning PID for IR detection");
-    LCD.setCursor(0,1); LCD.print("P: "); LCD.print(vals[0]);
-    LCD.setCursor(8,1); LCD.print("D: "); LCD.print(vals[1]);
-    delay(10);
-    LCD.clear(); 
-  }
-  while(startbutton()){delay(50);}
-  
-  //MENU TO SET SPEED
-  while( !(startbutton()) ){
-    int leftIR = analogRead(LEFT_IR_INPUT);
-    int rightIR = analogRead(RIGHT_IR_INPUT);
-    
-    vals[2] = knob(6);
-    if( vals[2] > 700 ){
-      vals[2] = 700;
-    }
-    
-    LCD.setCursor(0,0); LCD.print("L: "); LCD.print(leftIR); LCD.print("R: "); LCD.print(rightIR);
-    LCD.setCursor(0,1); LCD.print("SPEED: "); LCD.print(vals[2]);
-    delay(10);
-    LCD.clear();
-  }
-  while(startbutton()){delay(50);}
-  
-  while(!(startbutton()) ) {
-    vals[3] = knob(6);
-    vals[4] = floor(knob(7)/1023.0*2000.0);
-    
+void newTuningMenu(int vals[]) {
+  while (!startbutton()) {
+    int i = floor(knob(6)/1023.0*NUM_PARAMS);
     LCD.home();
-    LCD.setCursor(0,0); LCD.print("BEGIN: "); LCD.print(vals[3]);
-    LCD.setCursor(0,1); LCD.print("END: "); LCD.print(vals[4]);
-    delay(30);
+    LCD.setCursor(0,0); LCD.print(paramNames[i]);
+    LCD.setCursor(0,1); LCD.print(vals[i]);
+    delay(50);
     LCD.clear();
-  }
-  while(startbutton()){delay(50);}
-}
+    if (stopbutton()) {
+      while(stopbutton()){delay(50);}
 
-//Initializes tuning for returning on the rocks
-void tuneHomeIR(int vals[]) {
-  while(!(startbutton()) ) {
-    vals[0] = knob(6);
-    vals[1] = floor(knob(7)/1023.0*2000.0);
-    
-    LCD.home();
-    LCD.setCursor(0,0); LCD.print("LEAVING: "); LCD.print(vals[0]);
-    LCD.setCursor(0,1); LCD.print("OFF ROCKS: "); LCD.print(vals[1]);
-    delay(30);
-    LCD.clear();
-  }
-  while(startbutton()){delay(50);}
-}
+      while(!startbutton()) {
+        vals[i] = floor(knob(7)/1023.0*maxVals[i]);
+        LCD.setCursor(0,0); LCD.print(paramNames[i]);
+        LCD.setCursor(0,1); LCD.print(vals[i]);
+        delay(50);
+        LCD.clear();
+      }
+      while(startbutton()){delay(50);}
+    }
+  } while(startbutton()){delay(50);}
 
-//Initializes tuning for arm parameters
-void tuneArm(int vals[]) {
-  while( !(startbutton()) ) {
-     vals[0] = knob(6);
-
-     LCD.clear();
-     LCD.home();
-     LCD.setCursor(0,0); LCD.print("ARM SPEED: "); LCD.print(vals[0]);
-     delay(10);
-     LCD.clear();
-  }
-  while(startbutton()){delay(50);}
-}
-
-//Initializes tuning for going home
-void tuneGoHome(int vals[]) {
-  while(!startbutton()) {
-     vals[0] = knob(6);
-     vals[1] = floor(knob(7)/1023.0*5.0);
-     
-     LCD.home();
-     LCD.setCursor(0,0); LCD.print("Turn: "); LCD.print(vals[0]);
-     LCD.setCursor(0,1); LCD.print("Count: "); LCD.print(vals[1]);
-     
-     delay(10);
-     LCD.clear();
-  }
-  while(startbutton()){delay(50);}
+  kp = vals[0];
+  kd = vals[1];
+  threshold = vals[2];
+  velocity = vals[3];
+  delta = vals[4];
+  armSpeed = vals[5];
+  IR_kp = vals[6];
+  IR_kd = vals[7];
+  IR_velocity = vals[8];
+  beginIR = vals[9];
+  endIR = vals[10];
+  turnSpeed = vals[11];
+  turnCount = vals[12];
+  returnIRStart = vals[13];
+  returnIRStop = vals[14];
+  offIR = vals[15];
+  IRcorrection = vals[16];
 }
 
 /**
@@ -506,7 +416,7 @@ void setDefault() {
   endIR = 2000;
   ramping = 0;
   count = 0;
-  turnSpeed = 700;
+  turnSpeed = 900;
   turnCount = 4;
   returnIRStart = 200;
   returnIRStop = 1300;
@@ -523,34 +433,13 @@ void resetTempValues() {
   startSpeedUp = 0;
   startSlowDown = 0;
   startTimeBack = 0;
+  aboveIRthresh = FALSE;
 
   followingTape =  testOptions[TAPE_FOLLOWING];
   artifactArm = testOptions[ARTIFACT_ARM];
   IRsensor = testOptions[IR_SENSOR];
   goHome = testOptions[GO_HOME];
-
-  //TAPE FOLLOWING
-  kp = tapeValues[0];
-  kd = tapeValues[1];
-  threshold = tapeValues[2];
-  velocity = tapeValues[3];
-  delta = tapeValues[4];
-
-  //IR FOLLOWING
-  IR_kp = IRValues[0];
-  IR_kd = IRValues[1];
-  IR_velocity = IRValues[2];
-  beginIR = IRValues[3];
-  endIR = IRValues[4];
-
-  //ARM
-  armSpeed = armParameters[0];
-
-  //RETURNING
-  turnSpeed = returnParams[0];
-  turnCount = returnParams[1];
 }
-
 int checkStartButton() {
   if (startbutton()) {
     delay(50);

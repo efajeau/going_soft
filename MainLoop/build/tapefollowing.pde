@@ -52,7 +52,7 @@ void setLastError() {
       store_time = time;
       time = 1;
     }
-     
+    time = time + 1;
 
 }
 
