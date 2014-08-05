@@ -180,12 +180,13 @@ void loop() {
         armDownABit();
       }
       else if (count == 2) {
-        armUpIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
-        int haveIRlower = armDownIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
-        if (haveIRlower) {
-         followingTape = FALSE;
-         aboveIRthresh = TRUE;
-       }
+       armUpIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
+       int haveIRlower = armDownIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
+       if (haveIRlower == TRUE) {
+        followingTape = FALSE;
+        aboveIRthresh = TRUE;
+        }
+          //swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
       }
       else {
         swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
