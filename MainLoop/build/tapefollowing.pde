@@ -25,7 +25,7 @@ int store_time;
 int correction = 5;
 int sign = POSITIVE;
 long startTime = 0;
-long turnSweepTime = 2000;
+long turnSweepTime = 500;
 
 
 int offTape = FALSE;
@@ -137,11 +137,11 @@ void sweep() {
     if ( (millis() - startTime) > turnSweepTime)  {
       if (sign == POSITIVE) {
         sign = NEGATIVE;
-        turnSweepTime = 1000; 
+        turnSweepTime = 500; 
       }
       else if (sign == NEGATIVE) {
         sign = POSITIVE;
-        turnSweepTime = 2000;
+        turnSweepTime = 500;
       }
 
       startTime = millis();

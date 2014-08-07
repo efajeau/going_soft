@@ -76,6 +76,7 @@ long startWhite = 0;
 long whiteTime = 0;
 long IRtimeoutStart = 0;
 int IRtimeout = FALSE;
+long totalTime;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
 int IRValues[5] = {0, 0, 0, 0, 0};
@@ -85,7 +86,7 @@ int returnParams[2] = {0, 0};
 int returnIRParams[2] = {0, 0};
 
 String paramNames[NUM_PARAMS] = {"kp", "kd", "thresh", "speed", "delta", "armSpeed", "IRkp", "IRkd", "IRSpeed", "beginIR", "endIR", "turnSpeed", "turnCount", "Leave", "offRocks", "offIR", "IRcorrection"};
-int tuningVals[NUM_PARAMS] =    {148,   60,    290,      270,     0,       550,      60,     60,      322,       250,      2000,     1000,        4,          100,     740,        80,    100};
+int tuningVals[NUM_PARAMS] =    {165,   60,    290,      320,     1,       550,      60,     60,      300,       1000,      2000,     1000,        4,          100,     740,        80,    100};
 double maxVals[NUM_PARAMS] = { 1023.0, 1023.0, 1023.0,  900.0,   5.0,     1023.0,    1023.0, 1023.0, 1023.0,    2000.0, 1023.0, 1023.0, 5.0, 1023.0, 2000.0, 1023.0, 1023.0};
 
 void tapeTuning(int vals[]);
@@ -170,28 +171,28 @@ void loop() {
 
       //back up for 200 milliseconds
      if (count == 3) {
-      motor.speed(RIGHT_MOTOR_OUTPUT, -(velocity+ramping+200));
-      motor.speed(LEFT_MOTOR_OUTPUT, -(velocity+ramping+200));
+      motor.speed(RIGHT_MOTOR_OUTPUT, -(IR_velocity+100));
+      motor.speed(LEFT_MOTOR_OUTPUT, -(IR_velocity+100));
      }
      else if (count == 2 || count == 0) {
-      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+ramping-100);
-      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping-100);
+      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+ramping);
+      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping);
      }
      else {
-      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+100);
-      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+100);
+      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+ramping);
+      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping);
      }
 
       startTimeBack = millis();
       setLastError();
-      long totalTime;
+
       
       if (count == 3) {
-        totalTime = 800;
-        while( (millis() - startTimeBack) < totalTime);
+        totalTime = 100;
+        ( (millis() - startTimeBack) < totalTime);
       }
       else {
-        totalTime = 600;
+        totalTime = 500;
         while( (millis() - startTimeBack) < totalTime) {
           setLastError();
         }
@@ -216,7 +217,8 @@ void loop() {
           //swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
       }
       else if (count == 0) {
-        swingArmTurning(armSpeed, kp, kd, threshold, velocity+ramping, delta);
+     //   swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
+       swingArmTurning(armSpeed, kp, kd, threshold, velocity+ramping, delta);
       }
       else {
         swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
@@ -227,8 +229,8 @@ void loop() {
       LCD.home();
       LCD.print("turn1");
       long timingFirstTurn = millis();
-      motor.speed(RIGHT_MOTOR_OUTPUT, 1000);
-      motor.speed(LEFT_MOTOR_OUTPUT, -1000);
+      motor.speed(RIGHT_MOTOR_OUTPUT, 900);
+      motor.speed(LEFT_MOTOR_OUTPUT, -300);
       while (millis() - timingFirstTurn < (long)1500);
       LCD.clear();
       setLastTurnError(5);
@@ -262,10 +264,10 @@ void loop() {
     }
     
     if (count == 3 && turnCount == 4 && IRtimeout == FALSE) {
-      if ( (millis() - IRtimeoutStart) > 1500 ) {
-        LCD.clear();
-        LCD.home();
-        LCD.print("IR FOLLOWING");
+      if ( (millis() - IRtimeoutStart) > 1250 ) {
+//        LCD.clear();
+//        LCD.home();
+//        LCD.print("IR FOLLOWING");
         followingTape = FALSE;
         IRtimeout = TRUE;
         IRtimeoutStart = 0;
@@ -274,9 +276,9 @@ void loop() {
     //IR Follow after 3 Artifacts & above threshold
     if (IRsensor == TRUE && (getAvgLeftSignal() >= beginIR || getAvgRightSignal() >= beginIR) && count >= 3 && aboveIRthresh == FALSE) {
       followingTape = FALSE;
-      LCD.clear();
-      LCD.home();
-      LCD.print("IR FOLLOWING");
+//      LCD.clear();
+//      LCD.home();
+//      LCD.print("IR FOLLOWING");
       aboveIRthresh = TRUE;
     }
     if (IRsensor == TRUE && (aboveIRthresh == TRUE || IRtimeout == TRUE) ) {

@@ -36,7 +36,7 @@ void swingArm(int armSpeed, int kp, int kd, int threshold, int velocity, int del
 }
 
 void swingArmTurning(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta) {
-  long totalDriveTime = 3000;
+  long totalDriveTime = 1500;
    startArm = millis();
   motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
   delay(200);
