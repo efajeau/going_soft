@@ -70,6 +70,8 @@ int getAvgRightSignal() {
   return floor(avgSignal);
 }
 
+
+
 int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
   
   double denominator;
@@ -80,7 +82,7 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
   int rightIR = getAvgRightSignal();
 
    if ( (rightIR < offIR) && (leftIR < offIR) ) {
-     if (last_IR_error < 0 ){
+     if (last_IR_error <= 0 ){
        IR_error = -IRcorrection;
        if (writeCount > 1000) {
           writeCount = 0;
@@ -89,7 +91,7 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
           LCD.print("neg cor");
        }
      }
-     else if (last_IR_error >= 0){
+     else if (last_IR_error > 0){
        IR_error = IRcorrection;
         if (writeCount > 1000) {
           writeCount = 0;
@@ -181,11 +183,14 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
 }
 
 void rockTurning(int turnSpeed, int threshold) {
+ 
   motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
   motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
-  
+  LCD.clear();
+  LCD.home();
+  LCD.print("rock turning");
   startTurning = millis();
-  while ( getAverageIRSignal(10.0) < threshold ) {
+  while ( getAvgLeftSignal() < threshold || getAvgRightSignal() < threshold ) {
     if ( (millis() - startTurning) > 10000) {
       motor.speed(RIGHT_MOTOR_OUTPUT, 500);
       motor.speed(LEFT_MOTOR_OUTPUT, 500);
@@ -193,4 +198,10 @@ void rockTurning(int turnSpeed, int threshold) {
       startTurning = millis();
     }
   } 
+  LCD.clear();
+}
+
+void resetIRvals() {
+  last_IR_error = 0;
+  long startTurning = 0;
 }

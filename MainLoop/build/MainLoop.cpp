@@ -18,7 +18,7 @@
 #define LEFT_MOTOR_OUTPUT 1
 #define ARM_MOTOR_OUTPUT 2
 
-//-----MISC. CONSTANTS----//
+//-----MISC. CONSTANTS----//F
 #define TRUE 1
 #define FALSE 0
 #define TAPE_FOLLOWING 0
@@ -26,8 +26,8 @@
 #define IR_SENSOR 2
 #define GO_HOME 3
 #define RAMP_DELAY 4000
-#define RAMP_SPEED 100
-#define SLOW_DOWN 0
+#define RAMP_SPEED 0
+#define SLOW_DOWN 50
 
 #define NUM_PARAMS 17
 
@@ -48,8 +48,11 @@ int getAvgLeftSignal();
 int getAvgRightSignal();
 int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection);
 void rockTurning(int turnSpeed, int threshold);
+void resetIRvals();
 void swingArm(int armSpeed, int kp, int kd, int threshold, int velocity, int delta);
+void swingArmTurning(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta);
 void armUpNoFollow(int motorSpeed);
+int armUpTurn(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta, int turnSpeed);
 void armDownNoFollow(int motorSpeed);
 void armUp(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta);
 void armDown(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta);
@@ -58,15 +61,17 @@ int armUpIR(int motorSpeed, int kp, int kd, int threshold, int velocity, int del
 int armDownIR(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta, int IR_velocity, int IR_kp, int IR_kd, int offIR, int IRcorrection, int beginIR);
 int digitalReadHighFilter(int pin);
 void setLastError();
+void setSignPos();
+void setLastTurnError(int lastError);
 void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta);
 void turnAround(int turnSpeed, int threshold);
 void sweep();
 int kp = 120;
 int kd = 60;
 int threshold = 120;
-int velocity = 200;
+int velocity = 225;
 int delta = 0;
-int IR_kp = 120;
+int IR_kp = 60;
 int IR_kd = 60;
 int IR_velocity = 400;
 int armSpeed = 550;
@@ -101,6 +106,10 @@ int IRsensor = FALSE;
 int goHome = FALSE;
 int leftCheck = 0;
 int rightCheck = 0;
+long startWhite = 0;
+long whiteTime = 0;
+long IRtimeoutStart = 0;
+int IRtimeout = FALSE;
 
 int tapeValues[5] = {0, 0, 0, 0, 0};
 int IRValues[5] = {0, 0, 0, 0, 0};
@@ -110,8 +119,8 @@ int returnParams[2] = {0, 0};
 int returnIRParams[2] = {0, 0};
 
 String paramNames[NUM_PARAMS] = {"kp", "kd", "thresh", "speed", "delta", "armSpeed", "IRkp", "IRkd", "IRSpeed", "beginIR", "endIR", "turnSpeed", "turnCount", "Leave", "offRocks", "offIR", "IRcorrection"};
-int tuningVals[NUM_PARAMS] =    {120,   60,    300,      200,     0,       550,      120,     60,      450,       125,      2000,     1000,        4,          100,     1300,        100,    100};
-double maxVals[NUM_PARAMS] = {1023.0, 1023.0, 1023.0, 900.0, 5.0, 1023.0, 1023.0, 1023.0, 1023.0, 2000, 1023.0, 1023.0, 5.0, 1023.0, 1023.0, 1023.0, 1023.0};
+int tuningVals[NUM_PARAMS] =    {148,   60,    290,      270,     0,       550,      60,     60,      322,       250,      2000,     1000,        4,          100,     740,        80,    100};
+double maxVals[NUM_PARAMS] = { 1023.0, 1023.0, 1023.0,  900.0,   5.0,     1023.0,    1023.0, 1023.0, 1023.0,    2000.0, 1023.0, 1023.0, 5.0, 1023.0, 2000.0, 1023.0, 1023.0};
 
 void tapeTuning(int vals[]);
 void IRTuning(int vals[]);
@@ -171,22 +180,22 @@ void loop() {
      LCD.print("R: ");
      LCD.print(rightCheck);
      
-     threshold = knob(6);
+   //  threshold = knob(6);
      LCD.setCursor(0,1);
      LCD.print("thresh: "); LCD.print(threshold);
      delay(50);
    }
   //Operation of robot
-  //if () {
-    if (followingTape == TRUE)
-      armDown(armSpeed, kp, kd, threshold, velocity, delta);
-    else 
-      armDownNoFollow(armSpeed);
- // }
-
+//    if (followingTape == TRUE)
+//      armDown(armSpeed, kp, kd, threshold, velocity, delta);
+//    else 
+//      armDownNoFollow(armSpeed);
+  armDownNoFollow(armSpeed);
   while(!checkStopButton()) {
     //Follow Tape
+    
     if (followingTape == TRUE) {
+      
       tapeFollowing(kp, kd, threshold, velocity+ramping, delta);
     }
     //Check For Artifacts
@@ -194,80 +203,162 @@ void loop() {
     if (artifactArm == TRUE && digitalRead(ARTIFACT_DETECT_SWITCH) == HIGH) {
 
       //back up for 200 milliseconds
-      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+ramping);
-      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping);
+     if (count == 3) {
+      motor.speed(RIGHT_MOTOR_OUTPUT, -(velocity+ramping+200));
+      motor.speed(LEFT_MOTOR_OUTPUT, -(velocity+ramping+200));
+     }
+     else if (count == 2 || count == 0) {
+      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+ramping-100);
+      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+ramping-100);
+     }
+     else {
+      motor.speed(RIGHT_MOTOR_OUTPUT, -velocity+100);
+      motor.speed(LEFT_MOTOR_OUTPUT, -velocity+100);
+     }
+
       startTimeBack = millis();
       setLastError();
-      while( (millis() - startTimeBack) < (long)375) {
-        setLastError();
+      long totalTime;
+      
+      if (count == 3) {
+        totalTime = 800;
+        while( (millis() - startTimeBack) < totalTime);
       }
+      else {
+        totalTime = 600;
+        while( (millis() - startTimeBack) < totalTime) {
+          setLastError();
+        }
+      }
+      
       motor.stop(RIGHT_MOTOR_OUTPUT);
       motor.stop(LEFT_MOTOR_OUTPUT);
-
-      if (count == 3) {
+      if (count == turnCount-1) {
         armUpNoFollow(armSpeed);
         armDownABit();
-      }
-      else if (count == 2) {
+      } 
+      else if (count == 2 && turnCount == 4) {
        armUpIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
        int haveIRlower = armDownIR(armSpeed, kp, kd, threshold, velocity+ramping, delta, IR_velocity, IR_kp, IR_kd, offIR, IRcorrection, beginIR);
        if (haveIRlower == TRUE) {
+        LCD.clear();
+        LCD.home();
+        LCD.print("IR FOLLOWING");
         followingTape = FALSE;
         aboveIRthresh = TRUE;
         }
           //swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
       }
+      else if (count == 0) {
+        swingArmTurning(armSpeed, kp, kd, threshold, velocity+ramping, delta);
+      }
       else {
         swingArm(armSpeed, kp, kd, threshold, velocity+ramping, delta);
       }
       count++;
-      if (count==1)
-        startSpeedUp = millis();
+    if (count == 1) {
+      LCD.clear();
+      LCD.home();
+      LCD.print("turn1");
+      long timingFirstTurn = millis();
+      motor.speed(RIGHT_MOTOR_OUTPUT, 1000);
+      motor.speed(LEFT_MOTOR_OUTPUT, -1000);
+      while (millis() - timingFirstTurn < (long)1500);
+      LCD.clear();
+      setLastTurnError(5);
+      tapeFollowing(kp, kd, threshold, velocity+ramping, delta);
+      ramping = 100;
+      
+    }
+
+//      if (count==1)
+//        startSpeedUp = millis();
       if (count==2) {
         startSlowDown = millis();
       }
-    }
-    //Ramp up after 1 Artifact
-    if (count == 1 && ramping < RAMP_SPEED) {
-      if ( ((millis()-startSpeedUp) >= RAMP_DELAY)) {
-        ramping = RAMP_SPEED;
+      
+      if (count == 3 && turnCount == 4) {
+        IRtimeoutStart = millis();
       }
     }
+//    //Ramp up after 1 Artifact
+//    if (count == 1 && ramping < RAMP_SPEED) {
+//      if ( ((millis()-startSpeedUp) >= RAMP_DELAY)) {
+//        ramping = RAMP_SPEED;
+//      }
+//    }
+
     //Slow Down after 2 Artifacts
-    else if (count == 2 && ramping > 0) {
-      if ( ((millis()-startSlowDown)) >= 3000 )
+    if (count == 2 && ramping > 0) {
+      if ( ((millis()-startSlowDown)) >= 2000 ) {
         ramping = 0;
+      }
+    }
+    
+    if (count == 3 && turnCount == 4 && IRtimeout == FALSE) {
+      if ( (millis() - IRtimeoutStart) > 1500 ) {
+        LCD.clear();
+        LCD.home();
+        LCD.print("IR FOLLOWING");
+        followingTape = FALSE;
+        IRtimeout = TRUE;
+        IRtimeoutStart = 0;
+      }
     }
     //IR Follow after 3 Artifacts & above threshold
-    if (IRsensor == TRUE && getAvgLeftSignal() >= beginIR && getAvgRightSignal() >= beginIR && count >= 3 && aboveIRthresh == FALSE) {
+    if (IRsensor == TRUE && (getAvgLeftSignal() >= beginIR || getAvgRightSignal() >= beginIR) && count >= 3 && aboveIRthresh == FALSE) {
       followingTape = FALSE;
+      LCD.clear();
       LCD.home();
       LCD.print("IR FOLLOWING");
       aboveIRthresh = TRUE;
     }
-    if (aboveIRthresh == TRUE) {
+    if (IRsensor == TRUE && (aboveIRthresh == TRUE || IRtimeout == TRUE) ) {
       IRFollowing(IR_velocity, IR_kp, IR_kd, offIR, IRcorrection);
     }
     //Turn Around after set # of artifacts
     if (goHome == TRUE && count == turnCount) {
       artifactArm = FALSE;
-      velocity -= SLOW_DOWN;
+      //velocity -= SLOW_DOWN;
       if (turnCount < 4) {
         turnAround(turnSpeed, threshold);
       }
       else {
         rockTurning(turnSpeed, returnIRStart);
+        goingHome = TRUE;
       }
       beginIR = returnIRStart;
-      goingHome = TRUE;
       goHome = FALSE;
     }
-    //Sweep for tape after getting off the rocks
-    if (goingHome == TRUE && getIRSignal() > returnIRStop) {
+//    //Sweep for tape after getting off the rocks
+//    if (goingHome == TRUE) {
+//
+//      if (analogRead(LEFT_QRD_INPUT) < threshold && analogRead(RIGHT_QRD_INPUT) < threshold) {
+//        if (startWhite == 0) {
+//          startWhite = millis();
+//        }
+//        else {
+//          whiteTime = millis() - startWhite;
+//        }
+//      }
+//      else {
+//        whiteTime = 0;
+//        startWhite = 0;
+//      }
+//    }
+    if (goingHome == TRUE && (getAvgLeftSignal() > returnIRStop || getAvgRightSignal() > returnIRStop) ) {
       IRsensor = FALSE;
       followingTape = TRUE;
+      setLastTurnError(0);
       sweep();
+//      LCD.clear();
+//      LCD.home();
+//      LCD.print("TAPE FOLLOWING");
       tapeFollowing(kp, kd, threshold, velocity+ramping, delta);
+//      LCD.clear();
+//      LCD.home();
+//      LCD.print("TAPE FOLLOWING");
+      goingHome = FALSE;
     }
   }
   
@@ -297,6 +388,9 @@ void loop() {
   }
   while(startbutton() || stopbutton()){delay(50);}
   resetTempValues();
+  resetIRvals();
+  setLastTurnError(0);
+  setSignPos();
 }
 
 void newTuningMenu(int vals[]) {
@@ -436,9 +530,9 @@ void setDefault() {
   kp = 120;
   kd = 60;
   threshold = 225;
-  velocity = 200;
+  velocity = 225;
   delta = 0;
-  IR_kp = 120;
+  IR_kp = 60;
   IR_kd = 60;
   IR_velocity = 450;
   armSpeed = 550;
@@ -464,6 +558,10 @@ void resetTempValues() {
   startSlowDown = 0;
   startTimeBack = 0;
   aboveIRthresh = FALSE;
+  startWhite = 0;
+  whiteTime = 0;
+  IRtimeout = FALSE;
+  IRtimeoutStart = 0;
 
   followingTape =  testOptions[TAPE_FOLLOWING];
   artifactArm = testOptions[ARTIFACT_ARM];
@@ -563,6 +661,8 @@ int getAvgRightSignal() {
   return floor(avgSignal);
 }
 
+
+
 int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
   
   double denominator;
@@ -573,7 +673,7 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
   int rightIR = getAvgRightSignal();
 
    if ( (rightIR < offIR) && (leftIR < offIR) ) {
-     if (last_IR_error < 0 ){
+     if (last_IR_error <= 0 ){
        IR_error = -IRcorrection;
        if (writeCount > 1000) {
           writeCount = 0;
@@ -582,7 +682,7 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
           LCD.print("neg cor");
        }
      }
-     else if (last_IR_error >= 0){
+     else if (last_IR_error > 0){
        IR_error = IRcorrection;
         if (writeCount > 1000) {
           writeCount = 0;
@@ -674,11 +774,14 @@ int IRFollowing(int velocity, int kd, int kp, int offIR, int IRcorrection) {
 }
 
 void rockTurning(int turnSpeed, int threshold) {
+ 
   motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
   motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
-  
+  LCD.clear();
+  LCD.home();
+  LCD.print("rock turning");
   startTurning = millis();
-  while ( getAverageIRSignal(10.0) < threshold ) {
+  while ( getAvgLeftSignal() < threshold || getAvgRightSignal() < threshold ) {
     if ( (millis() - startTurning) > 10000) {
       motor.speed(RIGHT_MOTOR_OUTPUT, 500);
       motor.speed(LEFT_MOTOR_OUTPUT, 500);
@@ -686,6 +789,12 @@ void rockTurning(int turnSpeed, int threshold) {
       startTurning = millis();
     }
   } 
+  LCD.clear();
+}
+
+void resetIRvals() {
+  last_IR_error = 0;
+  long startTurning = 0;
 }
 #include <phys253.h>          
 #include <LiquidCrystal.h>
@@ -719,7 +828,75 @@ void swingArm(int armSpeed, int kp, int kd, int threshold, int velocity, int del
   armDown(armSpeed, kp, kd, threshold, velocity, delta);
   
   tapeFollowing(kp, kd, threshold, velocity, delta);
+  
+  
 
+}
+
+void swingArmTurning(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta) {
+  long totalDriveTime = 3000;
+   startArm = millis();
+  motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
+  delay(200);
+  long startDriving = millis();
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  while(millis() - startDriving < totalDriveTime) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  if(millis() - startDriving > totalDriveTime) {
+    velocity = 0;
+    kp = 0;
+    kd = 0;
+    delta = 0;
+  }
+  while(TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  startArm = millis();
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  motor.speed(ARM_MOTOR_OUTPUT, motorSpeed);
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+   while(millis() - startDriving < totalDriveTime) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(START_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  if(millis() - startDriving > totalDriveTime) {
+    velocity = 0;
+    kp = 0;
+    kd = 0;
+    delta = 0;
+  }
+  while(TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(START_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+  
 }
 
 void armUpNoFollow(int motorSpeed) {
@@ -732,6 +909,53 @@ void armUpNoFollow(int motorSpeed) {
       break; 
   }
   motor.stop(ARM_MOTOR_OUTPUT);
+}
+
+int armUpTurn(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta, int turnSpeed) {
+  int left;
+  int right;
+  long currentTime;
+  long startArm;
+  int checkForTape = FALSE;
+  int checkTime = TRUE;
+  int foundTape = FALSE;
+  motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);  
+  startArm = millis();
+  delay(200);
+  motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
+  motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
+  
+  while(TRUE) {
+    
+    currentTime = millis();
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+    if ( (currentTime - startArm) >= ARM_TIMEOUT )
+      break; 
+    if ( (currentTime - startArm >= 500) && (checkTime == TRUE)) {
+      checkForTape = TRUE;
+      checkTime  = FALSE;
+    }
+    if (checkForTape == TRUE) {
+         left = analogRead(LEFT_QRD_INPUT);
+         right = analogRead(RIGHT_QRD_INPUT);
+         if ( (left < threshold) || (right < threshold)) {
+           foundTape = TRUE;
+           break;
+         }
+    }
+  }
+   while(foundTape == TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+  return foundTape;
 }
 
 void armDownNoFollow(int motorSpeed) {
@@ -891,7 +1115,7 @@ int digitalReadHighFilter(int pin) {
 #define NEGATIVE -1
 
 int error;
-int last_error = 5;
+int last_error = 0;
 int stored_lerr;                                 
 int p;
 int d;
@@ -901,6 +1125,7 @@ int store_time;
 int correction = 5;
 int sign = POSITIVE;
 long startTime = 0;
+long turnSweepTime = 2000;
 
 
 int offTape = FALSE;
@@ -918,7 +1143,7 @@ void setLastError() {
       if (last_error < 0 ){
         error = -(correction);
       }
-      if (last_error > 0){
+      if (last_error >= 0){
         error = (correction + delta);
       }
     }
@@ -932,6 +1157,13 @@ void setLastError() {
 
 }
 
+void setSignPos() {
+  sign = POSITIVE;
+  turnSweepTime = 2000;
+}
+void setLastTurnError(int lastError) {
+  last_error = lastError;
+}
 void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
   //TAPE FOLLOWING ALGORITHM
     int left = analogRead(LEFT_QRD_INPUT);
@@ -961,8 +1193,16 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     
     pd = p + d;
     
-    motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+pd));
-    motor.speed(LEFT_MOTOR_OUTPUT, (velocity-pd));
+    int pdCap = 1020 - velocity;
+    if (pd < -pdCap) {
+      pd = -pdCap;
+    }
+    else if (pd > pdCap) {
+      pd = pdCap;
+    }
+    
+      motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+pd));
+      motor.speed(LEFT_MOTOR_OUTPUT, (velocity-pd));
     time = time + 1; 
 }
 
@@ -986,24 +1226,31 @@ void sweep() {
   int right = analogRead(RIGHT_QRD_INPUT);
 
   startTime = millis();
-  LCD.home();
-  LCD.setCursor(0,0);
-  LCD.print("SWEEPING");
+//  LCD.clear();
+//  LCD.home();
+//  LCD.setCursor(0,0);
+ // LCD.print("SWEEPING");
   while ( (left < threshold) && (right < threshold)) {
     left = analogRead(LEFT_QRD_INPUT);
     right = analogRead(RIGHT_QRD_INPUT);
-
-    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(600) );
-    motor.speed(LEFT_MOTOR_OUTPUT, sign*(-600));
-
-    if ( ((millis() - startTime) % 2000) == 0 )  {
-      if (sign == POSITIVE)
+    
+    if ( (millis() - startTime) > turnSweepTime)  {
+      if (sign == POSITIVE) {
         sign = NEGATIVE;
-      else if (sign == NEGATIVE)
+        turnSweepTime = 1000; 
+      }
+      else if (sign == NEGATIVE) {
         sign = POSITIVE;
+        turnSweepTime = 2000;
+      }
+
+      startTime = millis();
+      
+      motor.speed(RIGHT_MOTOR_OUTPUT, sign*(600) );
+      motor.speed(LEFT_MOTOR_OUTPUT, sign*(-600));
     }
   }
-  LCD.clear();
+//  LCD.clear();
 }
 
 

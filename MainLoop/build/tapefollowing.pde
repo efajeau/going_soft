@@ -15,7 +15,7 @@
 #define NEGATIVE -1
 
 int error;
-int last_error = 5;
+int last_error = 0;
 int stored_lerr;                                 
 int p;
 int d;
@@ -25,6 +25,7 @@ int store_time;
 int correction = 5;
 int sign = POSITIVE;
 long startTime = 0;
+long turnSweepTime = 2000;
 
 
 int offTape = FALSE;
@@ -42,7 +43,7 @@ void setLastError() {
       if (last_error < 0 ){
         error = -(correction);
       }
-      if (last_error > 0){
+      if (last_error >= 0){
         error = (correction + delta);
       }
     }
@@ -56,6 +57,13 @@ void setLastError() {
 
 }
 
+void setSignPos() {
+  sign = POSITIVE;
+  turnSweepTime = 2000;
+}
+void setLastTurnError(int lastError) {
+  last_error = lastError;
+}
 void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
   //TAPE FOLLOWING ALGORITHM
     int left = analogRead(LEFT_QRD_INPUT);
@@ -85,8 +93,16 @@ void tapeFollowing(int kp, int kd, int threshold, int velocity, int delta) {
     
     pd = p + d;
     
-    motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+pd));
-    motor.speed(LEFT_MOTOR_OUTPUT, (velocity-pd));
+    int pdCap = 1020 - velocity;
+    if (pd < -pdCap) {
+      pd = -pdCap;
+    }
+    else if (pd > pdCap) {
+      pd = pdCap;
+    }
+    
+      motor.speed(RIGHT_MOTOR_OUTPUT, (velocity+pd));
+      motor.speed(LEFT_MOTOR_OUTPUT, (velocity-pd));
     time = time + 1; 
 }
 
@@ -110,23 +126,30 @@ void sweep() {
   int right = analogRead(RIGHT_QRD_INPUT);
 
   startTime = millis();
-  LCD.home();
-  LCD.setCursor(0,0);
-  LCD.print("SWEEPING");
+//  LCD.clear();
+//  LCD.home();
+//  LCD.setCursor(0,0);
+ // LCD.print("SWEEPING");
   while ( (left < threshold) && (right < threshold)) {
     left = analogRead(LEFT_QRD_INPUT);
     right = analogRead(RIGHT_QRD_INPUT);
-
-    motor.speed(RIGHT_MOTOR_OUTPUT, sign*(600) );
-    motor.speed(LEFT_MOTOR_OUTPUT, sign*(-600));
-
-    if ( ((millis() - startTime) % 2000) == 0 )  {
-      if (sign == POSITIVE)
+    
+    if ( (millis() - startTime) > turnSweepTime)  {
+      if (sign == POSITIVE) {
         sign = NEGATIVE;
-      else if (sign == NEGATIVE)
+        turnSweepTime = 1000; 
+      }
+      else if (sign == NEGATIVE) {
         sign = POSITIVE;
+        turnSweepTime = 2000;
+      }
+
+      startTime = millis();
+      
+      motor.speed(RIGHT_MOTOR_OUTPUT, sign*(600) );
+      motor.speed(LEFT_MOTOR_OUTPUT, sign*(-600));
     }
   }
-  LCD.clear();
+//  LCD.clear();
 }
 

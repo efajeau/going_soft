@@ -30,7 +30,75 @@ void swingArm(int armSpeed, int kp, int kd, int threshold, int velocity, int del
   armDown(armSpeed, kp, kd, threshold, velocity, delta);
   
   tapeFollowing(kp, kd, threshold, velocity, delta);
+  
+  
 
+}
+
+void swingArmTurning(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta) {
+  long totalDriveTime = 3000;
+   startArm = millis();
+  motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);
+  delay(200);
+  long startDriving = millis();
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  while(millis() - startDriving < totalDriveTime) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  if(millis() - startDriving > totalDriveTime) {
+    velocity = 0;
+    kp = 0;
+    kd = 0;
+    delta = 0;
+  }
+  while(TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  startArm = millis();
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+  motor.speed(ARM_MOTOR_OUTPUT, motorSpeed);
+  tapeFollowing(kp, kd, threshold, velocity, delta);
+   while(millis() - startDriving < totalDriveTime) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(START_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  if(millis() - startDriving > totalDriveTime) {
+    velocity = 0;
+    kp = 0;
+    kd = 0;
+    delta = 0;
+  }
+  while(TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(START_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+  
 }
 
 void armUpNoFollow(int motorSpeed) {
@@ -43,6 +111,53 @@ void armUpNoFollow(int motorSpeed) {
       break; 
   }
   motor.stop(ARM_MOTOR_OUTPUT);
+}
+
+int armUpTurn(int motorSpeed, int kp, int kd, int threshold, int velocity, int delta, int turnSpeed) {
+  int left;
+  int right;
+  long currentTime;
+  long startArm;
+  int checkForTape = FALSE;
+  int checkTime = TRUE;
+  int foundTape = FALSE;
+  motor.speed(ARM_MOTOR_OUTPUT, -motorSpeed);  
+  startArm = millis();
+  delay(200);
+  motor.speed(RIGHT_MOTOR_OUTPUT, -turnSpeed);
+  motor.speed(LEFT_MOTOR_OUTPUT, turnSpeed);
+  
+  while(TRUE) {
+    
+    currentTime = millis();
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+    if ( (currentTime - startArm) >= ARM_TIMEOUT )
+      break; 
+    if ( (currentTime - startArm >= 500) && (checkTime == TRUE)) {
+      checkForTape = TRUE;
+      checkTime  = FALSE;
+    }
+    if (checkForTape == TRUE) {
+         left = analogRead(LEFT_QRD_INPUT);
+         right = analogRead(RIGHT_QRD_INPUT);
+         if ( (left < threshold) || (right < threshold)) {
+           foundTape = TRUE;
+           break;
+         }
+    }
+  }
+   while(foundTape == TRUE) {
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if (digitalReadHighFilter(END_SWITCH_PIN))
+      break;
+     tapeFollowing(kp, kd, threshold, velocity, delta);
+    if ( (millis() - startArm) >= ARM_TIMEOUT )
+      break; 
+    tapeFollowing(kp, kd, threshold, velocity, delta);
+  }
+  motor.stop(ARM_MOTOR_OUTPUT);
+  return foundTape;
 }
 
 void armDownNoFollow(int motorSpeed) {
